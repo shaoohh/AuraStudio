@@ -1,30 +1,58 @@
 // frontend/src/pages/Dashboard.tsx
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
 import { supabase } from "../supabase"
-import { useQueryClient } from "@tanstack/react-query"
+import { useQueryClient, useIsFetching } from "@tanstack/react-query" // 🚀 新增引入 useIsFetching
 import { Button } from "@/components/ui/button"
 import { LogOut, MonitorSmartphone } from "lucide-react"
 
 import Sidebar from "../components/layout/Sidebar"
 import TodoContent from "../components/todos/TodoContent"
-import CreativeStudio from "../components/creative/CreativeStudio" // 🆕 引入工作室
+import CreativeStudio from "../components/creative/CreativeStudio" 
 
-export type ModuleType = 'todos' | 'studio' // 🆕 定义模块类型
+// 引入全局加载控制器
+import { useLoading } from "../context/LoadingContext"
+
+export type ModuleType = 'todos' | 'studio'
 
 export default function Dashboard() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   
-  // 🆕 全局一级模块状态
   const [activeModule, setActiveModule] = useState<ModuleType>('todos')
-  
-  // Todo 状态
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
   
-  // 🆕 Studio 状态 (控制右侧编辑器到底显示哪一卷、哪一章)
   const [selectedVolumeId, setSelectedVolumeId] = useState<string | null>(null)
   const [selectedChapterId, setSelectedChapterId] = useState<string | null>(null)
+
+  // 💡 获取全局路由过场的放行钥匙
+  const { resolvePageReady } = useLoading()
+
+  // 🚀 核心大招：动态监控全局正在请求的接口数量（返回一个数字，0 代表当前没有任何请求在加载）
+  const isFetching = useIsFetching()
+  const [hasStartedLoading, setHasStartedLoading] = useState(false)
+
+  // 🎬 自动化数据就绪监听
+  useEffect(() => {
+    // 1. 如果检测到工作台内部组件（如 TodoContent）开始向 Hono 后端拉取数据
+    if (isFetching > 0) {
+      setHasStartedLoading(true)
+    }
+
+    // 2. 只有当内部组件【曾经启动过请求】，且【当前所有请求已 100% 落地完成（isFetching 归零）】
+    // 此时说明页面所有核心 API 数据已全部渲染就绪，立即呼叫大闸放行！
+    if (hasStartedLoading && isFetching === 0) {
+      resolvePageReady()
+    }
+  }, [isFetching, hasStartedLoading, resolvePageReady])
+
+  // 🛡️ 极端边界情况保底机制：万一用户是个老账号，本地有缓存或者初次进来没有任何网络请求
+  useEffect(() => {
+    const backupTimer = setTimeout(() => {
+      resolvePageReady() // 1.2秒后强制放行，防止页面被数据锁死
+    }, 1200)
+    return () => clearTimeout(backupTimer)
+  }, [resolvePageReady])
 
   const handleLogout = async () => {
     await supabase.auth.signOut()
@@ -33,10 +61,9 @@ export default function Dashboard() {
   }
 
   return (
-    // 整个屏幕没有多余的留白
     <div className="flex h-screen bg-slate-50 font-sans text-slate-900 overflow-hidden">
       
-      {/* 👈 左侧工具栏 (飞书风格的极浅灰背景) */}
+      {/* 👈 左侧工具栏 */}
       <div className="w-[260px] bg-white/80 backdrop-blur-sm border-r border-slate-200/80 flex flex-col shrink-0 z-10 shadow-sm">
         <div className="h-14 px-5 flex items-center shrink-0">
           <div className="flex items-center gap-2 font-semibold text-slate-800">
@@ -66,7 +93,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* 👉 右侧主内容区 (彻底流式展开，撑满剩余空间) */}
+      {/* 👉 右侧主内容区 */}
       <div className="flex-1 flex flex-col min-w-0 relative">
         {/* 顶部状态栏 */}
         <header className="h-14 shrink-0 border-b border-slate-200/70 bg-white/80 backdrop-blur-sm flex items-center justify-between px-8 shadow-sm z-10">
@@ -84,10 +111,9 @@ export default function Dashboard() {
           </div>
         </header>
         
-        {/* 内容展示区：W-FULL，无拘无束 */}
+        {/* 内容展示区 */}
         <main className="flex-1 overflow-y-auto p-6 lg:p-8 w-full animate-in fade-in duration-500 bg-slate-50/30">
           <div className="mx-auto w-full max-w-6xl h-full">
-            {/* 🚀 终极路由分发：基于 activeModule 渲染对应的庞大平行应用 */}
             {activeModule === 'todos' ? (
               <TodoContent categoryId={selectedCategory} />
             ) : (
