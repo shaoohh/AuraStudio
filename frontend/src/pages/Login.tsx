@@ -38,7 +38,7 @@ export default function Login() {
     // 手动拦截邮箱格式错误
     if (!validateEmailFormat(email)) {
       authError() 
-      setErrorMsg(`请在电子邮件地址中包含 "@"。“${email}” 缺少 "@"。`) 
+      setErrorMsg(`邮箱格式无效。“${email}” 不是一个有效的邮箱地址。`) 
       return; 
     }
 

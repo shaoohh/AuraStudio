@@ -4,7 +4,7 @@ import type { AppType } from '../../backend/src/index'
 const baseUrl=import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000' // 从环境变量读取 API 基础 URL，提供默认值
 import { supabase } from './supabase'
 
-export const client = hc<AppType>('http://localhost:3000', {
+export const client = hc<AppType>(baseUrl, {
   fetch: async (input: RequestInfo | URL, init?: RequestInit) => {
     const { data } = await supabase.auth.getSession()
     const token = data.session?.access_token
