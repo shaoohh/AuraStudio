@@ -70,7 +70,14 @@ export const volumesRoute = new Hono<{ Variables: Variables }>()
 
   // 6️⃣ 上传参考图到当前卷
   .post('/:id/assets', async (c) => {
+    const userId = c.get('jwtPayload').sub
     const volumeId = c.req.param('id')
+    const targetVolume = await db.query.volumes.findFirst({
+      where: and(eq(volumes.id, volumeId), eq(volumes.userId, userId))
+    })
+    if (!targetVolume) {
+      return c.json({ error: '目标卷宗不存在或无权操作' }, 403)
+    }
     const body = await c.req.parseBody()
     const file = body.file as File
     const assetName = (body.name as string) || '未命名资产'
