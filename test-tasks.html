@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Aura Studio - Tasks Prototype</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="min-h-screen bg-[#f8faf9] text-[#1f1d1a]">
+  <main class="grid min-h-screen grid-cols-[280px_minmax(0,1fr)]">
+    <aside class="border-r border-[#e5e4e7] bg-white px-6 py-8">
+      <div class="text-xs font-semibold uppercase tracking-[0.16em] text-[#9d9385]">Task Views</div>
+      <h1 class="mt-3 text-2xl font-semibold">任务面板</h1>
+
+      <div class="mt-8 space-y-3">
+        <div class="rounded-2xl bg-[#243137] px-4 py-3 text-sm text-white">收件箱</div>
+        <div class="rounded-2xl border border-[#e5e4e7] bg-[#fcfcfa] px-4 py-3 text-sm text-[#5f564a]">今天</div>
+        <div class="rounded-2xl border border-[#e5e4e7] bg-[#fcfcfa] px-4 py-3 text-sm text-[#5f564a]">小说大纲</div>
+        <div class="rounded-2xl border border-[#e5e4e7] bg-[#fcfcfa] px-4 py-3 text-sm text-[#5f564a]">角色设定集</div>
+      </div>
+    </aside>
+
+    <section class="px-10 py-8">
+      <div class="flex items-end justify-between gap-6">
+        <div>
+          <div class="text-sm font-medium tracking-[0.14em] text-[#9c9486]">TASKS</div>
+          <h2 class="mt-3 text-4xl font-semibold">今天要推进的事情</h2>
+          <p class="mt-4 max-w-2xl text-sm leading-7 text-gray-500">这个静态页先只保留结构感，方便后面单独调整任务区的密度、列表样式和输入体验。</p>
+        </div>
+        <a href="./test.html" class="rounded-full border border-[#e5e4e7] bg-white px-4 py-2 text-sm text-[#5f564a]">返回入口</a>
+      </div>
+
+      <div class="mt-10 grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
+        <div class="space-y-4">
+          <div class="rounded-[24px] border border-[#e5e4e7] bg-white p-5 shadow-sm">
+            <div class="flex items-start justify-between gap-4">
+              <div>
+                <div class="text-lg font-semibold">完善第一章的赛博环境描写</div>
+                <div class="mt-2 text-sm leading-7 text-gray-500">补更多霓虹、积水和压迫式监控的细节，让第一章更稳地站住气氛。</div>
+              </div>
+              <span class="rounded-full bg-[#fff3ee] px-3 py-1 text-xs font-medium text-[#c15c4d]">High</span>
+            </div>
+          </div>
+
+          <div class="rounded-[24px] border border-[#e5e4e7] bg-white p-5 shadow-sm">
+            <div class="flex items-start justify-between gap-4">
+              <div>
+                <div class="text-lg font-semibold">整理角色设定卡的语气关键词</div>
+                <div class="mt-2 text-sm leading-7 text-gray-500">把主角、匿名发送者和城市系统的说话质感先对齐。</div>
+              </div>
+              <span class="rounded-full bg-[#fffaf0] px-3 py-1 text-xs font-medium text-[#a37a2b]">Medium</span>
+            </div>
+          </div>
+        </div>
+
+        <aside class="rounded-[28px] border border-[#e5e4e7] bg-white p-6 shadow-sm">
+          <div class="text-xs font-semibold uppercase tracking-[0.16em] text-[#9d9385]">Quick Add</div>
+          <div class="mt-3 text-xl font-semibold">快速记录</div>
+          <div class="mt-5 space-y-4">
+            <input class="h-12 w-full rounded-2xl border border-[#e5e4e7] bg-[#f8faf9] px-4 text-sm outline-none" placeholder="任务标题">
+            <textarea class="min-h-[140px] w-full rounded-2xl border border-[#e5e4e7] bg-[#f8faf9] px-4 py-3 text-sm outline-none" placeholder="备注内容"></textarea>
+            <button class="w-full rounded-2xl bg-[#243137] px-4 py-3 text-sm font-medium text-white">添加任务</button>
+          </div>
+        </aside>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

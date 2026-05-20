@@ -65,14 +65,28 @@ export const todosRoute = new Hono<{ Variables: Variables }>()
   
   .put(
     '/:id', 
-    zValidator('json', z.object({ completed: z.boolean() })), 
+    zValidator('json', z.object({
+      completed: z.boolean().optional(),
+      title: z.string().trim().min(1).optional(),
+    }).refine(
+      (data) => data.completed !== undefined || data.title !== undefined,
+      { message: '至少需要提供一个更新字段' }
+    )), 
     async (c) => {
       const userId = c.get('jwtPayload').sub
       const id = c.req.param('id')
-      const { completed } = c.req.valid('json')
+      const { completed, title } = c.req.valid('json')
+
+      const updateData: Record<string, unknown> = {}
+      if (completed !== undefined) updateData.completed = completed
+      if (title !== undefined) updateData.title = title
+
+      if (Object.keys(updateData).length === 0) {
+        return c.json({ error: '没有可更新的字段' }, 400)
+      }
       
       const [updatedTodo] = await db.update(todos)
-        .set({ completed })
+        .set(updateData)
         .where(and(eq(todos.id, id), eq(todos.userId, userId))) 
         .returning()
         

@@ -1,29 +1,26 @@
-// backend/src/db/schema.ts
-import { pgTable, text, boolean, timestamp, uuid, integer } from 'drizzle-orm/pg-core'
-import { relations } from 'drizzle-orm'
+import { relations, sql } from 'drizzle-orm'
+import { boolean, integer, jsonb, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core'
 
-// =======================================
-// 1. 分类/清单表 (Categories)
-// =======================================
+type WritingCharacterRecord = {
+  id: string
+  name: string
+  role: string
+  note: string
+}
+
 export const categories = pgTable('categories', {
-  // 💡 修复点：使用 uuid 并让数据库自动生成随机的 UUID (defaultRandom)
-  id: uuid('id').defaultRandom().primaryKey(), 
-  name: text('name').notNull(), 
-  userId: uuid('user_id').notNull(), 
+  id: uuid('id').defaultRandom().primaryKey(),
+  name: text('name').notNull(),
+  userId: uuid('user_id').notNull(),
   createdAt: timestamp('created_at').defaultNow(),
 })
 
-// =======================================
-// 2. 待办事项表 (Todos)
-// =======================================
 export const todos = pgTable('todos', {
-  id: uuid('id').defaultRandom().primaryKey(), // 💡 修复点：也改为 UUID
+  id: uuid('id').defaultRandom().primaryKey(),
   title: text('title').notNull(),
   completed: boolean('completed').default(false),
   userId: uuid('user_id').notNull(),
-  
-  // 💡 修复点：外键也必须是 UUID 类型，才能和 categories 的 id 匹配上
-  categoryId: uuid('category_id').references(() => categories.id, { onDelete: 'cascade' }), 
+  categoryId: uuid('category_id').references(() => categories.id, { onDelete: 'cascade' }),
   orderIndex: integer('order_index').default(0).notNull(),
   createdAt: timestamp('created_at').defaultNow(),
 })
@@ -49,33 +46,106 @@ export const volumes = pgTable('volumes', {
 
 export const chapters = pgTable('chapters', {
   id: uuid('id').defaultRandom().primaryKey(),
-  volumeId: uuid('volume_id').references(() => volumes.id, { onDelete: 'cascade' }).notNull(),
+  volumeId: uuid('volume_id')
+    .references(() => volumes.id, { onDelete: 'cascade' })
+    .notNull(),
   title: text('title').notNull(),
-  originalText: text('original_text'), // 允许为 null，省去默认空字符串的麻烦
-  storyboardMd: text('storyboard_md'), // 允许为 null
+  originalText: text('original_text'),
+  storyboardMd: text('storyboard_md'),
   orderIndex: integer('order_index').default(0).notNull(),
   createdAt: timestamp('created_at').defaultNow(),
 })
 
 export const assets = pgTable('assets', {
   id: uuid('id').defaultRandom().primaryKey(),
-  volumeId: uuid('volume_id').references(() => volumes.id, { onDelete: 'cascade' }).notNull(),
+  volumeId: uuid('volume_id')
+    .references(() => volumes.id, { onDelete: 'cascade' })
+    .notNull(),
   url: text('url').notNull(),
   name: text('name').notNull(),
   type: text('type').default('character').notNull(),
   createdAt: timestamp('created_at').defaultNow(),
 })
 
-// 🔗 核心关系声明 (避免 Drizzle 连表查询崩溃)
 export const volumesRelations = relations(volumes, ({ many }) => ({
   chapters: many(chapters),
   assets: many(assets),
 }))
 
 export const chaptersRelations = relations(chapters, ({ one }) => ({
-  volume: one(volumes, { fields: [chapters.volumeId], references: [volumes.id] }),
+  volume: one(volumes, {
+    fields: [chapters.volumeId],
+    references: [volumes.id],
+  }),
 }))
 
 export const assetsRelations = relations(assets, ({ one }) => ({
-  volume: one(volumes, { fields: [assets.volumeId], references: [volumes.id] }),
+  volume: one(volumes, {
+    fields: [assets.volumeId],
+    references: [volumes.id],
+  }),
 }))
+
+export const writingBooks = pgTable('writing_books', {
+  id: text('id').primaryKey(),
+  userId: uuid('user_id').notNull(),
+  title: text('title').notNull(),
+  description: text('description').default('作者很懒').notNull(),
+  cover: text('cover'),
+  penName: text('pen_name').default('未命名作者').notNull(),
+  style: text('style').default('风格待分析').notNull(),
+  styleNote: text('style_note').default('先把书本架子搭起来，后面再慢慢补作者画像。').notNull(),
+  orderIndex: integer('order_index').default(0).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+})
+
+export const writingVolumes = pgTable('writing_volumes', {
+  id: text('id').primaryKey(),
+  bookId: text('book_id')
+    .references(() => writingBooks.id, { onDelete: 'cascade' })
+    .notNull(),
+  title: text('title').notNull(),
+  description: text('description').default('作者很懒').notNull(),
+  marked: boolean('marked').default(false).notNull(),
+  orderIndex: integer('order_index').default(0).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+})
+
+export const writingChapters = pgTable('writing_chapters', {
+  id: text('id').primaryKey(),
+  volumeId: text('volume_id')
+    .references(() => writingVolumes.id, { onDelete: 'cascade' })
+    .notNull(),
+  title: text('title').notNull(),
+  summary: text('summary').default('').notNull(),
+  content: text('content').default('').notNull(),
+  sceneNotes: jsonb('scene_notes').$type<string[]>().default(sql`'[]'::jsonb`).notNull(),
+  prompt: text('prompt').default('').notNull(),
+  characters: jsonb('characters').$type<WritingCharacterRecord[]>().default(sql`'[]'::jsonb`).notNull(),
+  updatedAtLabel: text('updated_at_label').default('').notNull(),
+  marked: boolean('marked').default(false).notNull(),
+  orderIndex: integer('order_index').default(0).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+})
+
+export const writingBooksRelations = relations(writingBooks, ({ many }) => ({
+  volumes: many(writingVolumes),
+}))
+
+export const writingVolumesRelations = relations(writingVolumes, ({ one, many }) => ({
+  book: one(writingBooks, {
+    fields: [writingVolumes.bookId],
+    references: [writingBooks.id],
+  }),
+  chapters: many(writingChapters),
+}))
+
+export const writingChaptersRelations = relations(writingChapters, ({ one }) => ({
+  volume: one(writingVolumes, {
+    fields: [writingChapters.volumeId],
+    references: [writingVolumes.id],
+  }),
+}))
+
+// 数据库表结构定义，包含 todo 与 writing 两个域。

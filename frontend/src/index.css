@@ -1,67 +1,75 @@
+@import "@fontsource-variable/geist";
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* 1. 全局 CSS 变量 (保留你的配色) */
 :root {
-  --text: #6b6375;
-  --text-h: #08060d;
-  --bg: #fff;
-  --border: #e5e4e7;
-  --code-bg: #f4f3ec;
-  --accent: #aa3bff;
-  --accent-bg: rgba(170, 59, 255, 0.1);
-  --accent-border: rgba(170, 59, 255, 0.5);
-  --social-bg: rgba(244, 243, 236, 0.5);
-  
-  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --mono: ui-monospace, Consolas, monospace;
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.2 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.96 0 0);
+  --secondary-foreground: oklch(0.145 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.55 0 0);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.145 0 0);
+  --destructive: oklch(0.58 0.24 27.3);
+  --border: oklch(0.92 0 0);
+  --input: oklch(0.92 0 0);
+  --ring: oklch(0.7 0 0);
+  --radius: 0.375rem;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --text: #9ca3af;
-    --text-h: #f3f4f6;
-    --bg: #16171d;
-    --border: #2e303a;
-    --code-bg: #1f2028;
-    --accent: #c084fc;
-    --accent-bg: rgba(192, 132, 252, 0.15);
-    --accent-border: rgba(192, 132, 252, 0.5);
-  }
-}
-
-/* 2. 基础全局样式 */
 @layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    background: #f3f3f3;
+  }
+
   body {
-    @apply bg-[radial-gradient(circle_at_top_left,rgba(99,102,241,0.08),transparent_28%),radial-gradient(circle_at_bottom_right,rgba(59,130,246,0.08),transparent_24%),#f8fafc] min-h-screen text-[var(--text)];
-    font: 18px/145% var(--sans);
+    @apply min-h-screen bg-[#f3f3f3] text-slate-800 antialiased;
+    font-family: "Geist Variable", system-ui, sans-serif;
+    font-size: 14px;
     margin: 0;
   }
-  
-  h1, h2 {
-    font-family: var(--heading);
-    font-weight: 500;
-    color: var(--text-h);
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    @apply text-slate-900;
+    letter-spacing: 0;
   }
 
-  /* Shadcn UI 主题变量 - 保持不变 */
-  :root {
-    --background: oklch(1 0 0);
-    --foreground: oklch(0.145 0 0);
-    /* ... (这里保留你原本的 Shadcn 定义，保持完整) ... */
-    --ring: oklch(0.708 0 0);
-  }
-  .dark {
-    --background: oklch(0.145 0 0);
-    --foreground: oklch(0.985 0 0);
-    /* ... (这里保留你原本的 Shadcn 定义，保持完整) ... */
+  button,
+  input,
+  textarea {
+    font: inherit;
   }
 }
 
-/* 3. 页面容器 */
 #root {
   width: 100%;
   min-height: 100vh;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+::selection {
+  background: rgba(15, 23, 42, 0.12);
 }

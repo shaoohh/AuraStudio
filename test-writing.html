@@ -1,0 +1,1103 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Aura Studio - Writing Shelf Prototype</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            charcoal: "#243137",
+            gold: "#BD9F67",
+            surface: "#F8FAF9",
+            border: "#E5E4E7",
+            ink: "#1F1D1A"
+          },
+          boxShadow: {
+            shelf: "0 24px 45px rgba(14, 24, 32, 0.12)",
+            glass: "0 15px 35px rgba(31, 29, 26, 0.08)"
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+
+    .brand-card-wrapper {
+      position: absolute;
+      bottom: 24px;
+      left: 14px;
+      z-index: 100;
+    }
+
+    .brand-card {
+      position: relative;
+      width: 52px;
+      height: 52px;
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 16px;
+      background: #243137;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+      transition: all 0.6s cubic-bezier(0.23, 1, 0.32, 1);
+      cursor: pointer;
+    }
+
+    .brand-card:hover {
+      width: 200px;
+      height: 200px;
+      border-color: rgba(189, 159, 103, 0.3);
+      border-radius: 30px;
+      box-shadow: rgba(0, 0, 0, 0.4) 0 20px 40px -10px;
+    }
+
+    .brand-card .background {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      background: radial-gradient(circle at 100% 107%, #ff89cc 0%, #9cb8ec 30%, #00ffee 60%, #62c2fe 100%);
+      transition: opacity 0.6s cubic-bezier(0.23, 1, 0.32, 1);
+    }
+
+    .brand-card:hover .background {
+      opacity: 1;
+    }
+
+    .brand-card .logo {
+      position: absolute;
+      right: 50%;
+      bottom: 50%;
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 30px;
+      height: 30px;
+      transform: translate(50%, 50%);
+      transition: all 0.6s cubic-bezier(0.23, 1, 0.32, 1);
+    }
+
+    .brand-card:hover .logo {
+      right: 20px;
+      bottom: 20px;
+      transform: translate(0, 0);
+    }
+
+    .brand-card .logo-mark {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      font-weight: 700;
+      color: white;
+      transition: all 0.6s cubic-bezier(0.23, 1, 0.32, 1);
+    }
+
+    .brand-card:hover .logo-mark {
+      transform: scale(1.08);
+    }
+
+    .brand-card .menu-box {
+      position: absolute;
+      display: flex;
+      align-items: flex-start;
+      justify-content: flex-end;
+      gap: 10px;
+      padding: 12px;
+      background: rgba(255, 255, 255, 0.18);
+      border: 0;
+      border-top: 1px solid rgba(255, 255, 255, 0.12);
+      border-right: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 10% 13% 42% 0% / 10% 12% 75% 0%;
+      box-shadow: rgba(100, 100, 111, 0.22) -7px 7px 29px 0;
+      opacity: 0;
+      transform-origin: bottom left;
+      transition: all 0.7s cubic-bezier(0.23, 1, 0.32, 1);
+    }
+
+    .brand-card:hover .menu-box {
+      bottom: -1px;
+      left: -1px;
+      opacity: 1;
+    }
+
+    .brand-card .menu-box::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      opacity: 0;
+      transition: opacity 0.45s cubic-bezier(0.23, 1, 0.32, 1);
+    }
+
+    .brand-card .menu-box:hover::before {
+      opacity: 1;
+    }
+
+    .brand-card .menu-box.one {
+      width: 70%;
+      height: 70%;
+      bottom: -70%;
+      left: -70%;
+      transition-delay: 0s;
+    }
+
+    .brand-card .menu-box.one::before {
+      background: radial-gradient(circle at 30% 107%, #fdf497 0%, #fdf497 5%, #ff53d4 60%, #62c2fe 90%);
+    }
+
+    .brand-card .menu-box.two {
+      width: 50%;
+      height: 50%;
+      bottom: -50%;
+      left: -50%;
+      transition-delay: 0.15s;
+    }
+
+    .brand-card .menu-box.two::before {
+      background: radial-gradient(circle at 30% 107%, #91e9ff 0%, #00acee 90%);
+    }
+
+    .brand-card .menu-box.three {
+      width: 30%;
+      height: 30%;
+      bottom: -30%;
+      left: -30%;
+      transition-delay: 0.3s;
+    }
+
+    .brand-card .menu-box.three::before {
+      background: radial-gradient(circle at 30% 107%, #969fff 0%, #b349ff 90%);
+    }
+
+    .brand-card .menu-label,
+    .brand-card .menu-icon {
+      position: relative;
+      z-index: 1;
+    }
+
+    .brand-card .menu-label {
+      color: white;
+      font-size: 12px;
+      font-weight: 600;
+      opacity: 0;
+      transform: translateX(8px);
+      transition: all 0.4s ease;
+      white-space: nowrap;
+    }
+
+    .brand-card .menu-icon {
+      width: 18px;
+      height: 18px;
+      color: rgba(255, 255, 255, 0.75);
+      transition: all 0.4s ease;
+    }
+
+    .brand-card .menu-box:hover .menu-label {
+      opacity: 1;
+      transform: translateX(0);
+    }
+
+    .brand-card .menu-box:hover .menu-icon {
+      color: white;
+      filter: drop-shadow(0 0 5px white);
+    }
+
+    .writing-shell {
+      display: grid;
+      grid-template-columns: 320px minmax(0, 1fr);
+      height: 100%;
+      width: 100%;
+      background: white;
+    }
+
+    .writing-main {
+      min-width: 0;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 320px;
+      background: linear-gradient(180deg, #fbfcfb 0%, #f8faf9 100%);
+    }
+
+    .shelf-page {
+      position: relative;
+      min-width: 0;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at top right, rgba(189, 159, 103, 0.16), transparent 28%),
+        linear-gradient(180deg, #fbfbfa 0%, #f1f4f2 100%);
+    }
+
+    .shelf-page::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(36, 49, 55, 0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(36, 49, 55, 0.03) 1px, transparent 1px);
+      background-size: 44px 44px;
+      mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.55), transparent 100%);
+      pointer-events: none;
+    }
+
+    .book-shelf {
+      position: relative;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(170px, 200px));
+      gap: 28px;
+      align-items: end;
+    }
+
+    .book-shelf::after {
+      content: "";
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 6px;
+      height: 18px;
+      border-radius: 999px;
+      background: radial-gradient(circle, rgba(36, 49, 55, 0.16) 0%, rgba(36, 49, 55, 0.02) 72%, transparent 100%);
+      filter: blur(16px);
+      pointer-events: none;
+    }
+
+    .book-card {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      min-height: 286px;
+      padding: 18px;
+      border-radius: 20px 12px 12px 20px;
+      overflow: hidden;
+      color: white;
+      background: #243137;
+      box-shadow: 0 25px 35px rgba(24, 32, 39, 0.18);
+      transform-origin: center bottom;
+      transition: transform 0.45s cubic-bezier(0.23, 1, 0.32, 1), box-shadow 0.45s ease, filter 0.45s ease;
+      isolation: isolate;
+      cursor: pointer;
+    }
+
+    .book-card::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(180deg, rgba(20, 25, 30, 0.04) 0%, rgba(6, 9, 11, 0.8) 100%);
+      z-index: 1;
+    }
+
+    .book-card::after {
+      content: "";
+      position: absolute;
+      inset: 0 auto 0 0;
+      width: 10px;
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(0, 0, 0, 0.2));
+      z-index: 2;
+    }
+
+    .book-card:hover {
+      transform: perspective(1200px) rotateY(-14deg) rotateX(5deg) translateY(-8px);
+      box-shadow: 0 32px 48px rgba(24, 32, 39, 0.22);
+      filter: saturate(1.08);
+    }
+
+    .book-cover {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .book-content {
+      position: relative;
+      z-index: 3;
+    }
+
+    .stats-panel {
+      background: rgba(255, 255, 255, 0.74);
+      backdrop-filter: blur(20px);
+      border-left: 1px solid rgba(229, 228, 231, 0.9);
+    }
+
+    .workspace-stage {
+      display: flex;
+      min-width: 0;
+      flex: 1;
+      background: white;
+    }
+
+    .tiny-action-menu {
+      position: relative;
+      width: 30px;
+      height: 30px;
+      flex-shrink: 0;
+    }
+
+    .tiny-action-menu .tiny-gear {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #8f877a;
+      transition: all 0.28s ease;
+      z-index: 5;
+      cursor: pointer;
+    }
+
+    .tiny-action-menu:hover .tiny-gear {
+      color: #243137;
+      opacity: 0;
+      transform: scale(0.6) rotate(90deg);
+    }
+
+    .tiny-action-menu .tiny-grid {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 6px;
+      width: 92px;
+      padding: 8px;
+      border-radius: 18px;
+      border: 1px solid rgba(229, 228, 231, 0.85);
+      background: rgba(255, 255, 255, 0.78);
+      box-shadow: 0 20px 35px rgba(31, 29, 26, 0.12);
+      backdrop-filter: blur(22px);
+      opacity: 0;
+      pointer-events: none;
+      transform: translate(-58%, -50%) scale(0.72);
+      transition: all 0.35s cubic-bezier(0.23, 1, 0.32, 1);
+      z-index: 4;
+    }
+
+    .tiny-action-menu:hover .tiny-grid {
+      opacity: 1;
+      pointer-events: auto;
+      transform: translate(-58%, -50%) scale(1);
+    }
+
+    .tiny-action-menu .tiny-card {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      min-height: 36px;
+      border-radius: 12px;
+      border: 1px solid transparent;
+      font-size: 10px;
+      font-weight: 600;
+      color: #6a6257;
+      background: rgba(248, 250, 249, 0.9);
+      transition: all 0.25s ease;
+      cursor: pointer;
+    }
+
+    .tiny-action-menu .tiny-card:hover {
+      border-color: rgba(189, 159, 103, 0.45);
+      background: white;
+      color: #243137;
+      transform: translateY(-2px);
+    }
+
+    .tiny-action-menu .tiny-card.delete:hover {
+      border-color: rgba(230, 108, 90, 0.3);
+      color: #c15c4d;
+    }
+
+    .book-modal-backdrop {
+      position: fixed;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      background: rgba(17, 24, 28, 0.38);
+      backdrop-filter: blur(4px);
+      z-index: 200;
+    }
+
+    .book-modal-backdrop.show {
+      display: flex;
+    }
+  </style>
+</head>
+<body class="bg-surface text-gray-800">
+  <div class="flex h-screen w-screen">
+    <nav class="relative z-50 flex h-full w-20 flex-col items-center border-r border-charcoal bg-charcoal py-6 shadow-2xl">
+      <button id="nav-avatar" onclick="switchModule('settings')" class="group relative mb-10 h-10 w-10 overflow-hidden rounded-full border-2 border-gray-400 transition-all hover:border-gold">
+        <img src="https://api.dicebear.com/7.x/notionists/svg?seed=Aura" alt="Avatar" class="h-full w-full object-cover">
+        <span class="pointer-events-none absolute left-14 top-1 whitespace-nowrap rounded bg-gray-800 px-2 py-1 text-xs text-white opacity-0 transition-opacity group-hover:opacity-100">账户设置</span>
+      </button>
+
+      <div class="flex w-full flex-1 flex-col items-center gap-6">
+        <button id="nav-writing" onclick="switchModule('writing')" class="group relative rounded-xl p-2 text-gold transition-colors hover:bg-white/5">
+          <i class="ph ph-pen-nib text-2xl"></i>
+          <span class="pointer-events-none absolute left-14 top-1/2 -translate-y-1/2 whitespace-nowrap rounded bg-gray-800 px-2 py-1 text-xs text-white opacity-0 transition-opacity group-hover:opacity-100">写作区</span>
+        </button>
+        <button id="nav-tasks" onclick="switchModule('tasks')" class="group relative rounded-xl p-2 text-gray-400 transition-colors hover:bg-white/5">
+          <i class="ph ph-check-square text-2xl"></i>
+          <span class="pointer-events-none absolute left-14 top-1/2 -translate-y-1/2 whitespace-nowrap rounded bg-gray-800 px-2 py-1 text-xs text-white opacity-0 transition-opacity group-hover:opacity-100">任务区</span>
+        </button>
+        <button class="group relative rounded-xl p-2 text-gray-400 transition-colors hover:bg-white/5">
+          <i class="ph ph-books text-2xl"></i>
+          <span class="pointer-events-none absolute left-14 top-1/2 -translate-y-1/2 whitespace-nowrap rounded bg-gray-800 px-2 py-1 text-xs text-white opacity-0 transition-opacity group-hover:opacity-100">资料库</span>
+        </button>
+        <button class="group relative mt-4 rounded-xl p-2 text-gray-400 transition-colors hover:bg-white/5">
+          <i class="ph ph-bell text-xl"></i>
+          <span class="pointer-events-none absolute left-14 top-1/2 -translate-y-1/2 whitespace-nowrap rounded bg-gray-800 px-2 py-1 text-xs text-white opacity-0 transition-opacity group-hover:opacity-100">系统通知</span>
+        </button>
+      </div>
+
+      <div class="brand-card-wrapper">
+        <div class="brand-card">
+          <div class="background"></div>
+          <div class="logo"><span class="logo-mark">AS</span></div>
+          <button class="menu-box one" onclick="alert('这里先挂退出逻辑')">
+            <span class="menu-label">退出登录</span>
+            <i class="ph ph-sign-out menu-icon"></i>
+          </button>
+          <button class="menu-box two" onclick="switchModule('settings')">
+            <span class="menu-label">全局设置</span>
+            <i class="ph ph-gear-six menu-icon"></i>
+          </button>
+          <button class="menu-box three" onclick="alert('这里先挂帮助逻辑')">
+            <span class="menu-label">更多</span>
+            <i class="ph ph-info menu-icon"></i>
+          </button>
+        </div>
+      </div>
+    </nav>
+
+    <div id="module-writing" class="writing-shell">
+      <aside class="flex h-full flex-col border-r border-border bg-gray-50">
+        <div class="border-b border-border px-5 py-4">
+          <div class="flex items-center justify-between">
+            <div>
+              <div class="text-[13px] font-medium tracking-[0.18em] text-[#a29a8d]">NOVEL</div>
+              <div id="writing-sidebar-title" class="mt-1 text-[17px] font-semibold text-ink">写作工作台</div>
+            </div>
+            <button onclick="openBookModal()" class="flex h-8 w-8 items-center justify-center rounded-xl text-[#8f877a] transition-colors hover:bg-white hover:text-ink">
+              <i class="ph ph-plus text-base"></i>
+            </button>
+          </div>
+        </div>
+
+        <div class="border-b border-border px-5 py-4">
+          <div class="relative">
+            <i class="ph ph-magnifying-glass pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-[#a59c8f]"></i>
+            <input id="book-search" oninput="renderWritingWorkspace()" type="text" placeholder="搜索书本、卷册或章节" class="h-10 w-full rounded-[12px] border border-[#e7e1d6] bg-white pl-9 pr-3 text-[13px] text-[#2f2a24] outline-none transition-colors focus:border-gold">
+          </div>
+        </div>
+
+        <div class="flex items-center justify-between border-b border-border px-5 py-3 text-[12px] text-[#8f877a]">
+          <div id="writing-sidebar-section-label" class="flex items-center gap-2">
+            <i class="ph ph-books text-sm"></i>
+            <span>作品目录</span>
+          </div>
+          <div id="writing-sidebar-section-action">
+            <span class="inline-flex min-w-6 items-center justify-center rounded-full bg-ink px-2 py-0.5 text-[11px] text-white">0</span>
+          </div>
+        </div>
+
+        <div id="writing-sidebar-body" class="no-scrollbar min-h-0 flex-1 overflow-y-auto px-4 py-4"></div>
+      </aside>
+
+      <div class="writing-main">
+        <main id="writing-main-panel" class="min-w-0"></main>
+        <aside id="writing-right-panel" class="stats-panel hidden h-full xl:flex xl:flex-col"></aside>
+      </div>
+    </div>
+
+    <div id="module-tasks" class="hidden flex-1 bg-surface">
+      <div class="flex h-full w-full items-center justify-center text-sm text-gray-500">任务区静态原型这轮先不改。</div>
+    </div>
+
+    <div id="module-settings" class="hidden flex-1 bg-surface">
+      <div class="flex h-full w-full items-center justify-center text-sm text-gray-500">设置区静态原型这轮先不改。</div>
+    </div>
+  </div>
+
+  <div id="book-modal" class="book-modal-backdrop">
+    <div class="w-full max-w-[520px] rounded-[28px] border border-white/60 bg-white/90 p-8 shadow-[0_30px_60px_rgba(20,24,29,0.18)] backdrop-blur-2xl">
+      <div class="flex items-start justify-between">
+        <div>
+          <div class="text-xs font-semibold uppercase tracking-[0.16em] text-[#a29a8d]">New Book</div>
+          <h2 class="mt-2 text-2xl font-semibold text-ink">添加新书</h2>
+          <p class="mt-2 text-sm leading-6 text-gray-500">先把书本壳子建出来，封面和简介后续都还能继续调。</p>
+        </div>
+        <button onclick="closeBookModal()" class="flex h-9 w-9 items-center justify-center rounded-full bg-[#f3f4f2] text-gray-500 transition-colors hover:text-ink">
+          <i class="ph ph-x text-lg"></i>
+        </button>
+      </div>
+
+      <div class="mt-8 space-y-5">
+        <label class="block">
+          <span class="mb-2 block text-sm font-medium text-ink">书名</span>
+          <input id="new-book-title" type="text" placeholder="例如：雨幕协议" class="h-12 w-full rounded-2xl border border-[#e6dfd4] bg-[#f8faf9] px-4 text-sm outline-none transition-colors focus:border-gold focus:bg-white">
+        </label>
+        <label class="block">
+          <span class="mb-2 block text-sm font-medium text-ink">简介</span>
+          <textarea id="new-book-description" rows="3" placeholder="默认会填入：作者很懒" class="w-full rounded-2xl border border-[#e6dfd4] bg-[#f8faf9] px-4 py-3 text-sm outline-none transition-colors focus:border-gold focus:bg-white"></textarea>
+        </label>
+        <label class="block">
+          <span class="mb-2 block text-sm font-medium text-ink">封面图片</span>
+          <input id="new-book-cover" type="text" placeholder="可选，先贴一个图片地址" class="h-12 w-full rounded-2xl border border-[#e6dfd4] bg-[#f8faf9] px-4 text-sm outline-none transition-colors focus:border-gold focus:bg-white">
+        </label>
+      </div>
+
+      <div class="mt-8 flex justify-end gap-3">
+        <button onclick="closeBookModal()" class="rounded-2xl px-5 py-3 text-sm font-medium text-gray-500 transition-colors hover:bg-[#f3f4f2]">取消</button>
+        <button onclick="createBook()" class="rounded-2xl bg-charcoal px-5 py-3 text-sm font-medium text-white shadow-lg shadow-charcoal/10 transition-colors hover:bg-[#1d282d]">创建书本</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const defaultBookCover = "https://images.unsplash.com/photo-1512820790803-83ca734da794?auto=format&fit=crop&w=900&q=80"
+
+    const state = {
+      activeModule: "writing",
+      activeBookId: "book-1",
+      activeVolumeId: "",
+      activeChapterId: "",
+      expandedVolumeIds: ["volume-1", "volume-2", "volume-3"],
+      books: [
+        {
+          id: "book-1",
+          title: "雨幕协议",
+          description: "赛博都市里的系统裂缝、匿名讯号与被迫苏醒的主角。",
+          cover: "https://images.unsplash.com/photo-1516979187457-637abb4f9353?auto=format&fit=crop&w=900&q=80",
+          penName: "沈昼",
+          style: "冷调赛博 / noir 叙事 / 高压环境描写",
+          styleNote: "擅长用城市系统感和细密感官描写推动故事节奏。",
+          volumes: [
+            {
+              id: "volume-1",
+              title: "第一卷 源噪",
+              description: "从异常信号开始，把主角一步步拖进系统裂缝。",
+              chapters: [
+                { id: "intro", title: "引言", summary: "先让城市成为角色，建立长期压迫感。" },
+                { id: "chapter-1", title: "第一章 觉醒", summary: "匿名通讯出现，主角意识到底层系统被动过手脚。" },
+                { id: "chapter-2", title: "第二章 迷雾都市", summary: "空间感和监控感同步加重，城市开始真正吞没主角。" }
+              ]
+            },
+            {
+              id: "volume-2",
+              title: "第二卷 下潜",
+              description: "从追查异常到深入核心网络，行动风险开始飙升。",
+              chapters: [
+                { id: "chapter-3", title: "第三章 静默区", summary: "第一次真正失去监控反馈，安静本身也开始制造压力。" }
+              ]
+            }
+          ]
+        },
+        {
+          id: "book-2",
+          title: "玻璃海峡",
+          description: "作者很懒",
+          cover: "https://images.unsplash.com/photo-1519682337058-a94d519337bc?auto=format&fit=crop&w=900&q=80",
+          penName: "闻川",
+          style: "都市悬疑 / 情绪流 / 人物压抑关系",
+          styleNote: "更偏人物心理与都市密闭空间里的慢性拉扯。",
+          volumes: [
+            {
+              id: "volume-3",
+              title: "第一卷 倒影之上",
+              description: "从一场未完成的告白开始，逐步逼近旧案回声。",
+              chapters: [
+                { id: "chapter-4", title: "第一章 灯箱之下", summary: "主角重新回到熟悉街区，决定翻出被压下去的那一夜。" }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+
+    function getFilteredBooks() {
+      const keyword = document.getElementById("book-search").value.trim().toLowerCase()
+      if (!keyword) return state.books
+
+      return state.books.filter((book) =>
+        [book.title, book.description, book.penName, ...book.volumes.map((volume) => `${volume.title} ${volume.description} ${volume.chapters.map((chapter) => `${chapter.title} ${chapter.summary}`).join(" ")}`)]
+          .join(" ")
+          .toLowerCase()
+          .includes(keyword)
+      )
+    }
+
+    function getActiveBook() {
+      return state.books.find((book) => book.id === state.activeBookId) || state.books[0]
+    }
+
+    function getActiveVolume(book) {
+      return book.volumes.find((volume) => volume.id === state.activeVolumeId) || book.volumes[0]
+    }
+
+    function getActiveChapter(volume) {
+      return volume.chapters.find((chapter) => chapter.id === state.activeChapterId) || volume.chapters[0]
+    }
+
+    function isInsideBook() {
+      return Boolean(state.activeBookId && state.activeVolumeId && state.activeChapterId)
+    }
+
+    function switchModule(moduleName) {
+      state.activeModule = moduleName
+
+      document.getElementById("module-writing").classList.add("hidden")
+      document.getElementById("module-tasks").classList.add("hidden")
+      document.getElementById("module-settings").classList.add("hidden")
+
+      document.getElementById("nav-writing").classList.remove("text-gold")
+      document.getElementById("nav-writing").classList.add("text-gray-400")
+      document.getElementById("nav-tasks").classList.remove("text-gold")
+      document.getElementById("nav-tasks").classList.add("text-gray-400")
+      document.getElementById("nav-avatar").classList.remove("border-gold", "ring-2", "ring-gold/30")
+      document.getElementById("nav-avatar").classList.add("border-gray-400")
+
+      if (moduleName === "writing") {
+        document.getElementById("module-writing").classList.remove("hidden")
+        document.getElementById("nav-writing").classList.remove("text-gray-400")
+        document.getElementById("nav-writing").classList.add("text-gold")
+      } else if (moduleName === "tasks") {
+        document.getElementById("module-tasks").classList.remove("hidden")
+        document.getElementById("nav-tasks").classList.remove("text-gray-400")
+        document.getElementById("nav-tasks").classList.add("text-gold")
+      } else {
+        document.getElementById("module-settings").classList.remove("hidden")
+        document.getElementById("nav-avatar").classList.remove("border-gray-400")
+        document.getElementById("nav-avatar").classList.add("border-gold", "ring-2", "ring-gold/30")
+      }
+    }
+
+    function toggleVolume(volumeId) {
+      if (state.expandedVolumeIds.includes(volumeId)) {
+        state.expandedVolumeIds = state.expandedVolumeIds.filter((id) => id !== volumeId)
+      } else {
+        state.expandedVolumeIds.push(volumeId)
+      }
+      renderWritingWorkspace()
+    }
+
+    function openBook(bookId, volumeId, chapterId) {
+      state.activeBookId = bookId
+      const book = state.books.find((item) => item.id === bookId)
+      const volume = volumeId || book.volumes[0]?.id
+      const chapter = chapterId || book.volumes[0]?.chapters[0]?.id
+      state.activeVolumeId = volume
+      state.activeChapterId = chapter
+
+      if (volume && !state.expandedVolumeIds.includes(volume)) state.expandedVolumeIds.push(volume)
+      renderWritingWorkspace()
+    }
+
+    function backToBookDirectory() {
+      state.activeVolumeId = ""
+      state.activeChapterId = ""
+      renderWritingWorkspace()
+    }
+
+    function openBookModal() {
+      document.getElementById("new-book-title").value = ""
+      document.getElementById("new-book-description").value = ""
+      document.getElementById("new-book-cover").value = ""
+      document.getElementById("book-modal").classList.add("show")
+    }
+
+    function closeBookModal() {
+      document.getElementById("book-modal").classList.remove("show")
+    }
+
+    function createBook() {
+      const title = document.getElementById("new-book-title").value.trim()
+      const description = document.getElementById("new-book-description").value.trim() || "作者很懒"
+      const cover = document.getElementById("new-book-cover").value.trim() || defaultBookCover
+
+      if (!title) {
+        alert("先填一个书名。")
+        return
+      }
+
+      const stamp = Date.now()
+      const book = {
+        id: `book-${stamp}`,
+        title,
+        description,
+        cover,
+        penName: "未命名作者",
+        style: "风格待分析",
+        styleNote: "先把项目壳子搭起来，后续再补作者画像。",
+        volumes: [
+          {
+            id: `volume-${stamp}`,
+            title: "第一卷",
+            description: "作者很懒",
+            chapters: [
+              {
+                id: `chapter-${stamp}`,
+                title: "第一章",
+                summary: "这里先放一个章节入口。"
+              }
+            ]
+          }
+        ]
+      }
+
+      state.books.unshift(book)
+      state.activeBookId = book.id
+      state.activeVolumeId = book.volumes[0].id
+      state.activeChapterId = book.volumes[0].chapters[0].id
+      state.expandedVolumeIds = [book.volumes[0].id, ...state.expandedVolumeIds]
+      closeBookModal()
+      renderWritingWorkspace()
+    }
+
+    function renderTinyMenu(type) {
+      const labels = [
+        ["编辑", "ph-pencil-simple"],
+        ["删除", "ph-trash"],
+        ["添加", "ph-plus"],
+        ["标记", "ph-bookmark-simple"]
+      ]
+
+      return `
+        <div class="tiny-action-menu">
+          <div class="tiny-gear"><i class="ph ph-gear-six text-sm"></i></div>
+          <div class="tiny-grid">
+            ${labels.map(([label, icon]) => `
+              <button class="tiny-card ${label === "删除" ? "delete" : ""}" onclick="event.stopPropagation(); alert('${type === "volume" ? "卷册" : "章节"}${label}逻辑后续接入')">
+                <i class="ph ${icon} text-xs"></i>
+                <span>${label}</span>
+              </button>
+            `).join("")}
+          </div>
+        </div>
+      `
+    }
+
+    function renderWritingSidebar() {
+      const filteredBooks = getFilteredBooks()
+      const activeBook = getActiveBook()
+      const insideBook = isInsideBook()
+      const keyword = document.getElementById("book-search").value.trim().toLowerCase()
+
+      const container = document.getElementById("writing-sidebar-body")
+      const title = document.getElementById("writing-sidebar-title")
+      const label = document.getElementById("writing-sidebar-section-label")
+      const action = document.getElementById("writing-sidebar-section-action")
+
+      if (insideBook) {
+        title.textContent = activeBook.title
+        label.innerHTML = `<i class="ph ph-book-open text-sm"></i><span>${activeBook.title}</span>`
+        action.innerHTML = `
+          <button onclick="backToBookDirectory()" class="flex h-7 w-7 items-center justify-center rounded-full bg-[#f4f1ea] text-[#7f7669] transition-colors hover:bg-[#ece6da] hover:text-ink">
+            <i class="ph ph-arrow-left text-sm"></i>
+          </button>
+        `
+      } else {
+        title.textContent = "写作工作台"
+        label.innerHTML = `<i class="ph ph-books text-sm"></i><span>作品目录</span>`
+        action.innerHTML = `<span class="inline-flex min-w-6 items-center justify-center rounded-full bg-ink px-2 py-0.5 text-[11px] text-white">${filteredBooks.length}</span>`
+      }
+
+      if (!insideBook) {
+        if (filteredBooks.length === 0) {
+          container.innerHTML = `
+            <div class="rounded-[18px] border border-dashed border-[#ddd6c7] bg-white/70 px-4 py-6 text-center">
+              <div class="text-sm font-medium text-[#3a342d]">没有匹配的作品</div>
+              <div class="mt-1 text-xs leading-5 text-[#8f877a]">换个关键词，或者直接新建一本书。</div>
+            </div>
+          `
+          return
+        }
+
+        container.innerHTML = `
+          <div class="space-y-3">
+            ${filteredBooks.map((book) => `
+              <div class="rounded-[18px] bg-white/80 p-3 shadow-[0_0_0_1px_rgba(229,228,231,0.55)]">
+                <button onclick="openBook('${book.id}')" class="flex w-full items-start gap-3 text-left">
+                  <div class="h-12 w-9 shrink-0 overflow-hidden rounded-[10px] border border-white/70 shadow-sm">
+                    <img src="${book.cover || defaultBookCover}" alt="${book.title}" class="h-full w-full object-cover">
+                  </div>
+                  <span class="min-w-0 flex-1">
+                    <span class="block truncate text-[13px] text-[#3a342d]">${book.title}</span>
+                    <span class="mt-1 block text-[11px] leading-5 text-[#8f877a]">${book.description}</span>
+                  </span>
+                  <span class="pt-1 text-[#b4ab9f]"><i class="ph ph-caret-right text-xs"></i></span>
+                </button>
+                <div class="mt-3 flex items-center justify-between border-t border-[#f0ebe2] pt-3 text-[11px] text-[#9a9388]">
+                  <span>${book.volumes.length} 卷 / ${book.volumes.reduce((count, volume) => count + volume.chapters.length, 0)} 章</span>
+                  <span>${book.penName}</span>
+                </div>
+              </div>
+            `).join("")}
+          </div>
+        `
+        return
+      }
+
+      const filteredVolumes = activeBook.volumes
+        .map((volume) => {
+          const filteredChapters = volume.chapters.filter((chapter) => {
+            if (!keyword) return true
+            return [activeBook.title, volume.title, volume.description, chapter.title, chapter.summary]
+              .join(" ")
+              .toLowerCase()
+              .includes(keyword)
+          })
+
+          if (filteredChapters.length === 0 && keyword && ![activeBook.title, volume.title, volume.description].join(" ").toLowerCase().includes(keyword)) {
+            return null
+          }
+
+          return {
+            ...volume,
+            chapters: filteredChapters.length > 0 ? filteredChapters : volume.chapters
+          }
+        })
+        .filter(Boolean)
+
+      if (filteredVolumes.length === 0) {
+        container.innerHTML = `
+          <div class="rounded-[18px] border border-dashed border-[#ddd6c7] bg-white/70 px-4 py-6 text-center">
+            <div class="text-sm font-medium text-[#3a342d]">这本书里没有匹配内容</div>
+            <div class="mt-1 text-xs leading-5 text-[#8f877a]">换个关键词，或者直接回到作品目录。</div>
+          </div>
+        `
+        return
+      }
+
+      container.innerHTML = `
+        <div class="space-y-3">
+          ${filteredVolumes.map((volume) => {
+            const isExpanded = state.expandedVolumeIds.includes(volume.id)
+            const chapterList = isExpanded ? volume.chapters.map((chapter) => {
+              const isActiveChapter = chapter.id === state.activeChapterId
+              return `
+                <div class="flex items-start gap-2 rounded-[12px] ${isActiveChapter ? "bg-[#f4efe4]" : "hover:bg-[#f7f4ee]"} px-3 py-2.5">
+                  <button onclick="openBook('${activeBook.id}','${volume.id}','${chapter.id}')" class="flex min-w-0 flex-1 items-start gap-3 text-left">
+                    <span class="mt-[7px] h-1.5 w-1.5 rounded-full ${isActiveChapter ? "bg-[#1f1d1a]" : "bg-[#c7beb1]"}"></span>
+                    <span class="min-w-0 flex-1">
+                      <span class="block truncate text-[13px] ${isActiveChapter ? "font-medium text-[#1f1d1a]" : "text-[#5b544b]"}">${chapter.title}</span>
+                      <span class="mt-1 block truncate text-[11px] text-[#9a9388]">${chapter.summary}</span>
+                    </span>
+                  </button>
+                  <div class="pt-0.5">${renderTinyMenu("chapter")}</div>
+                </div>
+              `
+            }).join("") : ""
+
+            return `
+              <div class="rounded-[18px] bg-white/80 p-3 shadow-[0_0_0_1px_rgba(229,228,231,0.55)]">
+                <div class="flex items-start gap-2">
+                  <button onclick="toggleVolume('${volume.id}')" class="mt-0.5 rounded-md p-1 text-[#a59c8f] transition-colors hover:bg-[#f7f4ee] hover:text-ink">
+                    <i class="ph ${isExpanded ? "ph-caret-down" : "ph-caret-right"} text-xs"></i>
+                  </button>
+                  <button onclick="openBook('${activeBook.id}','${volume.id}','${volume.chapters[0]?.id || ""}')" class="min-w-0 flex-1 text-left">
+                    <div class="truncate text-[13px] text-[#3a342d]">${volume.title}</div>
+                    <div class="mt-1 text-[11px] leading-5 text-[#8f877a]">${volume.description}</div>
+                  </button>
+                  <div class="pt-0.5">${renderTinyMenu("volume")}</div>
+                </div>
+                ${isExpanded ? `<div class="mt-3 space-y-2 border-l border-[#ece4d7] pl-3">${chapterList}</div>` : ""}
+              </div>
+            `
+          }).join("")}
+        </div>
+      `
+    }
+
+    function renderShelfPage(book) {
+      return `
+        <section class="shelf-page h-full overflow-y-auto no-scrollbar">
+          <div class="px-10 pb-12 pt-10">
+            <div class="mb-10 flex items-end justify-between gap-8">
+              <div>
+                <div class="text-sm font-medium tracking-[0.14em] text-[#9c9486]">我的项目</div>
+                <h1 class="mt-3 text-[42px] font-semibold leading-tight text-ink">书架总览</h1>
+                <p class="mt-4 max-w-2xl text-sm leading-7 text-gray-500">先把所有书本都放上来，入口做得更像一个私人写作舱。后面点击封面时，再补你说的移动、放大、翻页那段动效。</p>
+              </div>
+              <div class="hidden rounded-[24px] border border-white/70 bg-white/70 px-5 py-4 text-right shadow-glass backdrop-blur xl:block">
+                <div class="text-xs uppercase tracking-[0.16em] text-[#9d9385]">Current Focus</div>
+                <div class="mt-2 text-lg font-semibold text-ink">${book.title}</div>
+                <div class="mt-1 text-sm text-gray-500">${book.volumes.length} 卷 · ${book.volumes.reduce((count, volume) => count + volume.chapters.length, 0)} 章</div>
+              </div>
+            </div>
+
+            <div class="rounded-[32px] border border-white/80 bg-white/55 px-8 py-10 shadow-shelf backdrop-blur-xl">
+              <div class="mb-8 flex items-center justify-between">
+                <div>
+                  <div class="text-xs font-semibold uppercase tracking-[0.16em] text-[#9d9385]">Aura Shelf</div>
+                  <div class="mt-2 text-xl font-semibold text-ink">你的作品正在这里排队发光</div>
+                </div>
+                <div class="rounded-full border border-[#ebe3d7] bg-[#fbfaf7] px-4 py-2 text-xs text-[#7f7669]">Hover 查看封面质感，点击进入书内</div>
+              </div>
+
+              <div class="book-shelf pt-4">
+                ${state.books.map((item) => `
+                  <button onclick="openBook('${item.id}')" class="book-card text-left">
+                    <img src="${item.cover || defaultBookCover}" alt="${item.title}" class="book-cover">
+                    <div class="book-content">
+                      <div class="mb-16 inline-flex rounded-full border border-white/20 bg-black/15 px-3 py-1 text-[11px] font-medium text-white/90 backdrop-blur">
+                        ${item.volumes.length} 卷 / ${item.volumes.reduce((count, volume) => count + volume.chapters.length, 0)} 章
+                      </div>
+                      <div class="text-[26px] font-semibold leading-tight">${item.title}</div>
+                      <div class="mt-3 text-sm leading-6 text-white/80">${item.description}</div>
+                    </div>
+                  </button>
+                `).join("")}
+              </div>
+            </div>
+          </div>
+        </section>
+      `
+    }
+
+    function renderWorkspacePage(book, volume, chapter) {
+      return `
+        <div class="workspace-stage">
+          <main class="flex min-w-0 flex-1 flex-col bg-white">
+            <header class="border-b border-border bg-white px-8 pt-4">
+              <div class="mb-4 flex items-center gap-2 text-sm text-gray-400">
+                <span>我的项目</span>
+                <span>/</span>
+                <span>${book.title}</span>
+                <span>/</span>
+                <span>${volume.title}</span>
+                <span>/</span>
+                <span class="font-medium text-charcoal">${chapter.title}</span>
+              </div>
+
+              <div class="flex gap-6">
+                <button class="border-b-2 border-gold pb-3 text-sm font-medium text-charcoal">Original Text</button>
+                <button class="border-b-2 border-transparent pb-3 text-sm font-medium text-gray-400">Scene Tracking</button>
+                <button class="flex items-center gap-1 border-b-2 border-transparent pb-3 text-sm font-medium text-gray-400"><i class="ph ph-sparkle text-gold"></i> AI Prompt</button>
+                <button class="border-b-2 border-transparent pb-3 text-sm font-medium text-gray-400">Character Setting</button>
+              </div>
+            </header>
+
+            <div class="no-scrollbar min-h-0 flex-1 overflow-y-auto">
+              <div class="mx-auto max-w-3xl px-8 py-16">
+                <h1 class="mb-8 text-center font-serif text-4xl font-bold text-charcoal">${chapter.title}</h1>
+                <div class="space-y-6 font-serif text-lg leading-loose text-gray-700">
+                  <p>这里先保留你之前那种极简编辑区的气质，但这轮重点只是把书架首页和进入书本后的结构切顺，所以正文区域我先保持克制，不去过度铺新交互。</p>
+                  <p>后面如果你确认这套骨架没问题，我们再把点击书本后的封面飞向中间、逐步放大、翻页进入的动画接进来，同时把这里和真正的 React 页面一比一落地。</p>
+                  <p class="italic text-gray-400">当前章节摘要：${chapter.summary}</p>
+                </div>
+              </div>
+            </div>
+          </main>
+        </div>
+      `
+    }
+
+    function renderAuthorPanel(book) {
+      const worksCount = state.books.length
+      const chapterCount = book.volumes.reduce((count, volume) => count + volume.chapters.length, 0)
+
+      return `
+        <div class="h-full border-l border-border bg-[#fcfcfa]">
+          <div class="border-b border-border px-6 py-5">
+            <div class="text-[12px] font-semibold uppercase tracking-[0.16em] text-[#9d9385]">Author View</div>
+            <div class="mt-2 text-lg font-semibold text-charcoal">作者信息</div>
+          </div>
+
+          <div class="no-scrollbar flex-1 overflow-y-auto px-6 py-6">
+            <div class="space-y-6">
+              <div class="rounded-[24px] border border-[#e7e2d8] bg-white p-5 shadow-sm">
+                <div class="flex items-center gap-4">
+                  <div class="h-14 w-14 overflow-hidden rounded-2xl border border-[#ede5d9] bg-[#f7f5ef]">
+                    <img src="https://api.dicebear.com/7.x/notionists/svg?seed=${encodeURIComponent(book.penName)}" alt="${book.penName}" class="h-full w-full object-cover">
+                  </div>
+                  <div>
+                    <div class="text-[11px] uppercase tracking-[0.16em] text-[#9d9385]">Pen Name</div>
+                    <div class="mt-1 text-lg font-semibold text-ink">${book.penName}</div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="grid grid-cols-2 gap-3">
+                <div class="rounded-[18px] border border-[#e7e2d8] bg-white p-4">
+                  <div class="text-[11px] uppercase tracking-[0.14em] text-[#9d9385]">已有作品</div>
+                  <div class="mt-2 text-xl font-semibold text-ink">${worksCount}</div>
+                </div>
+                <div class="rounded-[18px] border border-[#e7e2d8] bg-white p-4">
+                  <div class="text-[11px] uppercase tracking-[0.14em] text-[#9d9385]">当前章节</div>
+                  <div class="mt-2 text-xl font-semibold text-ink">${chapterCount}</div>
+                </div>
+              </div>
+
+              <div class="rounded-[22px] border border-[#e7e2d8] bg-white p-5">
+                <div class="text-sm font-medium text-ink">风格分析</div>
+                <p class="mt-3 text-sm leading-7 text-[#5d564d]">${book.style}</p>
+                <p class="mt-3 text-sm leading-7 text-gray-500">${book.styleNote}</p>
+              </div>
+
+              <div class="rounded-[22px] border border-[#e7e2d8] bg-white p-5">
+                <div class="text-sm font-medium text-ink">当前作品摘要</div>
+                <p class="mt-3 text-sm leading-7 text-[#5d564d]">${book.description}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      `
+    }
+
+    function renderWritingWorkspace() {
+      const filteredBooks = getFilteredBooks()
+      if (filteredBooks.length > 0 && !filteredBooks.some((book) => book.id === state.activeBookId)) {
+        state.activeBookId = filteredBooks[0].id
+      }
+
+      const activeBook = getActiveBook()
+      renderWritingSidebar()
+
+      const main = document.getElementById("writing-main-panel")
+      const right = document.getElementById("writing-right-panel")
+
+      if (isInsideBook()) {
+        const activeVolume = getActiveVolume(activeBook)
+        const activeChapter = getActiveChapter(activeVolume)
+        main.innerHTML = renderWorkspacePage(activeBook, activeVolume, activeChapter)
+      } else {
+        main.innerHTML = renderShelfPage(activeBook)
+      }
+
+      right.innerHTML = renderAuthorPanel(activeBook)
+      right.classList.remove("hidden")
+    }
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") closeBookModal()
+    })
+
+    document.getElementById("book-modal").addEventListener("click", (event) => {
+      if (event.target.id === "book-modal") closeBookModal()
+    })
+
+    switchModule("writing")
+    renderWritingWorkspace()
+  </script>
+</body>
+</html>

@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Aura Studio Prototypes</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="min-h-screen bg-[#f5f7f6] text-[#1f1d1a]">
+  <main class="mx-auto flex min-h-screen max-w-5xl flex-col justify-center px-6 py-16">
+    <div class="mb-10">
+      <div class="text-sm font-medium tracking-[0.18em] text-[#9c9486]">AURA STUDIO</div>
+      <h1 class="mt-4 text-4xl font-semibold">静态原型入口</h1>
+      <p class="mt-4 max-w-2xl text-sm leading-7 text-gray-500">
+        这里把实验页面拆开了。写作区保留完整原型，任务区和设置区先拆成独立静态页，后面你 review 或单独调整时不会再挤在一个大文件里。
+      </p>
+    </div>
+
+    <div class="grid gap-5 md:grid-cols-3">
+      <a href="./test-writing.html" class="rounded-[28px] border border-white/80 bg-white/80 p-6 shadow-[0_18px_38px_rgba(20,24,29,0.08)] transition-transform duration-300 hover:-translate-y-1">
+        <div class="text-xs font-semibold uppercase tracking-[0.16em] text-[#9d9385]">Writing</div>
+        <div class="mt-3 text-2xl font-semibold">写作工作台</div>
+        <p class="mt-3 text-sm leading-7 text-gray-500">书架首页、书内目录、卷册章节操作和当前确认过的交互原型都在这里。</p>
+      </a>
+
+      <a href="./test-tasks.html" class="rounded-[28px] border border-white/80 bg-white/80 p-6 shadow-[0_18px_38px_rgba(20,24,29,0.08)] transition-transform duration-300 hover:-translate-y-1">
+        <div class="text-xs font-semibold uppercase tracking-[0.16em] text-[#9d9385]">Tasks</div>
+        <div class="mt-3 text-2xl font-semibold">任务面板</div>
+        <p class="mt-3 text-sm leading-7 text-gray-500">后续调整 todo 结构、密度和信息层级时，直接在独立页面里试，不会影响写作原型。</p>
+      </a>
+
+      <a href="./test-settings.html" class="rounded-[28px] border border-white/80 bg-white/80 p-6 shadow-[0_18px_38px_rgba(20,24,29,0.08)] transition-transform duration-300 hover:-translate-y-1">
+        <div class="text-xs font-semibold uppercase tracking-[0.16em] text-[#9d9385]">Settings</div>
+        <div class="mt-3 text-2xl font-semibold">个人设置</div>
+        <p class="mt-3 text-sm leading-7 text-gray-500">头像、资料、安全和外观这些表单迭代后面都能单独改，阅读和定位会轻松很多。</p>
+      </a>
+    </div>
+  </main>
+</body>
+</html>
