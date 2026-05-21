@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 
 import type { WritingBook, WritingVolume } from '../types'
+import { compareWritingTitles } from '../utils'
 import { WritingActionMenu } from './WritingActionMenu'
 
 interface WritingSidebarProps {
@@ -20,8 +21,8 @@ interface WritingSidebarProps {
   onOpenBook: (bookId: string, volumeId?: string, chapterId?: string) => void
   onBackToLibrary: () => void
   onToggleVolume: (volumeId: string) => void
-  onAddVolume: (bookId: string) => void
-  onRenameVolume: (bookId: string, volumeId: string, title: string) => void
+  onAddVolume: (bookId: string) => WritingVolume | undefined
+  onRenameVolume: (bookId: string, volumeId: string, title: string, description: string) => void
   onDeleteVolume: (bookId: string, volumeId: string) => void
   onToggleVolumeMarked: (bookId: string, volumeId: string) => void
   onAddChapter: (bookId: string, volumeId: string) => void
@@ -55,6 +56,7 @@ export function WritingSidebar({
   const [editingVolumeId, setEditingVolumeId] = useState<string | null>(null)
   const [editingChapterId, setEditingChapterId] = useState<string | null>(null)
   const [volumeDraft, setVolumeDraft] = useState('')
+  const [volumeDescriptionDraft, setVolumeDescriptionDraft] = useState('')
   const [chapterDraft, setChapterDraft] = useState('')
 
   const activeBook = books.find((book) => book.id === activeBookId) ?? books[0]
@@ -83,11 +85,17 @@ export function WritingSidebar({
     if (!activeBook) return []
 
     const keyword = search.trim().toLowerCase()
-    if (!keyword) return activeBook.volumes
+    if (!keyword) {
+      return [...activeBook.volumes].sort(compareWritingTitles).map((volume) => ({
+        ...volume,
+        chapters: [...volume.chapters].sort(compareWritingTitles),
+      }))
+    }
 
     return activeBook.volumes
       .map((volume) => {
-        const filteredChapters = volume.chapters.filter((chapter) =>
+        const orderedChapters = [...volume.chapters].sort(compareWritingTitles)
+        const filteredChapters = orderedChapters.filter((chapter) =>
           [activeBook.title, volume.title, volume.description, chapter.title, chapter.summary].join(' ').toLowerCase().includes(keyword)
         )
 
@@ -100,16 +108,25 @@ export function WritingSidebar({
 
         return {
           ...volume,
-          chapters: filteredChapters.length > 0 ? filteredChapters : volume.chapters,
+          chapters: filteredChapters.length > 0 ? filteredChapters : orderedChapters,
         }
       })
       .filter((volume): volume is WritingVolume => Boolean(volume))
+      .sort(compareWritingTitles)
   }, [activeBook, search])
 
-  const startVolumeEdit = (volumeId: string, title: string) => {
+  const startVolumeEdit = (volumeId: string, title: string, description: string) => {
     setEditingChapterId(null)
     setEditingVolumeId(volumeId)
     setVolumeDraft(title)
+    setVolumeDescriptionDraft(description)
+  }
+
+  const saveVolumeEdit = (bookId: string, volumeId: string) => {
+    if (!volumeDraft.trim()) return
+
+    onRenameVolume(bookId, volumeId, volumeDraft.trim(), volumeDescriptionDraft.trim() || '作者很懒')
+    setEditingVolumeId(null)
   }
 
   const startChapterEdit = (chapterId: string, title: string) => {
@@ -206,24 +223,23 @@ export function WritingSidebar({
                               value={volumeDraft}
                               onChange={(event) => setVolumeDraft(event.target.value)}
                               onKeyDown={(event) => {
-                                if (event.key === 'Enter' && volumeDraft.trim()) {
-                                  onRenameVolume(activeBook.id, volume.id, volumeDraft.trim())
-                                  setEditingVolumeId(null)
-                                }
+                                if (event.key === 'Enter' && volumeDraft.trim()) saveVolumeEdit(activeBook.id, volume.id)
                                 if (event.key === 'Escape') setEditingVolumeId(null)
                               }}
                               className="h-9 rounded-[12px] border-[#e7e1d6] bg-white text-[13px] text-[#1f1d1a]"
+                            />
+                            <textarea
+                              value={volumeDescriptionDraft}
+                              onChange={(event) => setVolumeDescriptionDraft(event.target.value)}
+                              rows={3}
+                              className="w-full resize-none rounded-[12px] border border-[#e7e1d6] bg-white px-3 py-2 text-[12px] leading-5 text-[#5f564a] outline-none transition-colors focus:border-[#BD9F67] focus:ring-1 focus:ring-[#BD9F67]"
                             />
                             <div className="flex justify-end">
                               <Button
                                 variant="outline"
                                 size="sm"
                                 className="rounded-xl border-[#e7e1d6] text-xs"
-                                onClick={() => {
-                                  if (!volumeDraft.trim()) return
-                                  onRenameVolume(activeBook.id, volume.id, volumeDraft.trim())
-                                  setEditingVolumeId(null)
-                                }}
+                                onClick={() => saveVolumeEdit(activeBook.id, volume.id)}
                               >
                                 保存
                               </Button>
@@ -246,7 +262,7 @@ export function WritingSidebar({
                             <WritingActionMenu
                               type="volume"
                               marked={volume.marked}
-                              onEdit={() => startVolumeEdit(volume.id, volume.title)}
+                              onEdit={() => startVolumeEdit(volume.id, volume.title, volume.description)}
                               onDelete={() => onDeleteVolume(activeBook.id, volume.id)}
                               onAdd={() => onAddChapter(activeBook.id, volume.id)}
                               onToggleMark={() => onToggleVolumeMarked(activeBook.id, volume.id)}
@@ -323,7 +339,10 @@ export function WritingSidebar({
 
               <button
                 type="button"
-                onClick={() => onAddVolume(activeBook.id)}
+                onClick={() => {
+                  const volume = onAddVolume(activeBook.id)
+                  if (volume) startVolumeEdit(volume.id, volume.title, volume.description)
+                }}
                 className="flex w-full items-center justify-center gap-2 rounded-[16px] border border-dashed border-[#d8cfbf] bg-white/70 px-4 py-3 text-[13px] font-medium text-[#7d7468] transition-colors hover:border-[#BD9F67] hover:bg-white hover:text-[#1f1d1a]"
               >
                 <Plus className="h-4 w-4" />
@@ -351,7 +370,8 @@ export function WritingSidebar({
                 </button>
                 <div className="mt-3 flex items-center justify-between border-t border-[#f0ebe2] pt-3 text-[11px] text-[#9a9388]">
                   <span>
-                    {book.volumes.length} 卷 / {book.volumes.reduce((count, volume) => count + volume.chapters.length, 0)} 章
+                    {book.volumeCount ?? book.volumes.length} 卷 /{' '}
+                    {book.chapterCount ?? book.volumes.reduce((count, volume) => count + volume.chapters.length, 0)} 章
                   </span>
                   <span>{book.penName}</span>
                 </div>

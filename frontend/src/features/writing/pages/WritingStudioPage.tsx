@@ -2,15 +2,21 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 
 import {
+  fetchWritingBookTree,
+  fetchWritingChapter,
+  type UpdateWritingBookInput,
   type UpdateWritingChapterInput,
   useCreateWritingBookMutation,
   useCreateWritingChapterMutation,
   useCreateWritingVolumeMutation,
   useDeleteWritingChapterMutation,
   useDeleteWritingVolumeMutation,
+  useUpdateWritingBookMutation,
   useUpdateWritingChapterMutation,
   useUpdateWritingVolumeMutation,
+  writingBookTreeQueryKey,
   useWritingBooksQuery,
+  writingChapterQueryKey,
   writingBooksQueryKey,
 } from '../api'
 import { CreateBookDialog } from '../components/CreateBookDialog'
@@ -24,10 +30,104 @@ import { WritingVolumePlaceholder } from '../components/WritingVolumePlaceholder
 import type { WritingBook, WritingChapter, WritingTabId, WritingVolume } from '../types'
 import { countWritingWords, createDraftBook, createDraftChapter, createDraftVolume, createTimestampLabel } from '../utils'
 
+type WritingSnapshot = {
+  books: WritingBook[]
+  activeBookId: string
+  activeVolumeId: string
+  activeChapterId: string
+  expandedVolumeIds: string[]
+  isLibraryView: boolean
+}
+
+function mergeWritingBooks(incomingBooks: WritingBook[], currentBooks: WritingBook[]) {
+  return incomingBooks.map((incomingBook) => {
+    const currentBook = currentBooks.find((book) => book.id === incomingBook.id)
+    if (!currentBook) return incomingBook
+
+    return {
+      ...incomingBook,
+      volumes: incomingBook.volumes.length === 0 && currentBook.volumes.length > 0 ? currentBook.volumes : incomingBook.volumes.map((incomingVolume) => {
+        const currentVolume = currentBook.volumes.find((volume) => volume.id === incomingVolume.id)
+        if (!currentVolume) return incomingVolume
+
+        return {
+          ...incomingVolume,
+          chapters: incomingVolume.chapters.map((incomingChapter) => {
+            const currentChapter = currentVolume.chapters.find((chapter) => chapter.id === incomingChapter.id)
+            return currentChapter?.detailLoaded
+              ? {
+                  ...incomingChapter,
+                  content: currentChapter.content,
+                  sceneNotes: currentChapter.sceneNotes,
+                  prompt: currentChapter.prompt,
+                  characters: currentChapter.characters,
+                  reviewChecklist: currentChapter.reviewChecklist,
+                  nextActions: currentChapter.nextActions,
+                  detailLoaded: true,
+                }
+              : incomingChapter
+          }),
+        }
+      }),
+    }
+  })
+}
+
+function mergeWritingBookTree(incomingBook: WritingBook, currentBook?: WritingBook) {
+  const volumeCount = incomingBook.volumes.length
+  const chapterCount = incomingBook.volumes.reduce((count, volume) => count + volume.chapters.length, 0)
+
+  if (!currentBook) {
+    return {
+      ...incomingBook,
+      volumeCount,
+      chapterCount,
+    }
+  }
+
+  return {
+    ...incomingBook,
+    volumeCount,
+    chapterCount,
+    volumes: incomingBook.volumes.map((incomingVolume) => {
+      const currentVolume = currentBook.volumes.find((volume) => volume.id === incomingVolume.id)
+      if (!currentVolume) return incomingVolume
+
+      return {
+        ...incomingVolume,
+        chapters: incomingVolume.chapters.map((incomingChapter) => {
+          const currentChapter = currentVolume.chapters.find((chapter) => chapter.id === incomingChapter.id)
+          if (!currentChapter?.detailLoaded) return incomingChapter
+
+          return {
+            ...incomingChapter,
+            content: currentChapter.content,
+            sceneNotes: currentChapter.sceneNotes,
+            prompt: currentChapter.prompt,
+            characters: currentChapter.characters,
+            reviewChecklist: currentChapter.reviewChecklist,
+            nextActions: currentChapter.nextActions,
+            detailLoaded: true,
+          }
+        }),
+      }
+    }),
+  }
+}
+
+function withWritingCounts(book: WritingBook): WritingBook {
+  return {
+    ...book,
+    volumeCount: book.volumes.length,
+    chapterCount: book.volumes.reduce((count, volume) => count + volume.chapters.length, 0),
+  }
+}
+
 export function WritingStudioPage() {
   const queryClient = useQueryClient()
   const booksQuery = useWritingBooksQuery()
   const createBookMutation = useCreateWritingBookMutation()
+  const updateBookMutation = useUpdateWritingBookMutation()
   const createVolumeMutation = useCreateWritingVolumeMutation()
   const updateVolumeMutation = useUpdateWritingVolumeMutation()
   const deleteVolumeMutation = useDeleteWritingVolumeMutation()
@@ -45,18 +145,18 @@ export function WritingStudioPage() {
   const [isCreateBookOpen, setIsCreateBookOpen] = useState(false)
   const [isLibraryView, setIsLibraryView] = useState(true)
   const [errorMessage, setErrorMessage] = useState('')
+  const [loadingChapterId, setLoadingChapterId] = useState('')
 
   const hydratedRef = useRef(false)
   const chapterTimersRef = useRef<Record<string, number>>({})
+  const toastTimerRef = useRef<number | null>(null)
   const pendingChapterPatchesRef = useRef<Record<string, UpdateWritingChapterInput>>({})
+  const pendingChapterSnapshotsRef = useRef<Record<string, WritingSnapshot>>({})
 
   useEffect(() => {
     if (booksQuery.data === undefined) return
 
-    setBooks(booksQuery.data)
-    setExpandedVolumeIds((current) =>
-      current.filter((id) => booksQuery.data.some((book) => book.volumes.some((volume) => volume.id === id)))
-    )
+    setBooks((current) => mergeWritingBooks(booksQuery.data, current))
     setActiveBookId((current) => {
       if (booksQuery.data.length === 0) return ''
       return booksQuery.data.some((book) => book.id === current) ? current : booksQuery.data[0].id
@@ -67,6 +167,7 @@ export function WritingStudioPage() {
   useEffect(() => {
     return () => {
       Object.values(chapterTimersRef.current).forEach((timer) => window.clearTimeout(timer))
+      if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current)
     }
   }, [])
 
@@ -107,10 +208,45 @@ export function WritingStudioPage() {
 
   function applyBooks(updater: (current: WritingBook[]) => WritingBook[]) {
     setBooks((current) => {
-      const next = updater(current)
+      const next = updater(current).map(withWritingCounts)
       queryClient.setQueryData(writingBooksQueryKey, next)
       return next
     })
+  }
+
+  function createSnapshot(): WritingSnapshot {
+    return {
+      books,
+      activeBookId,
+      activeVolumeId,
+      activeChapterId,
+      expandedVolumeIds,
+      isLibraryView,
+    }
+  }
+
+  function restoreSnapshot(snapshot: WritingSnapshot) {
+    setBooks(snapshot.books)
+    queryClient.setQueryData(writingBooksQueryKey, snapshot.books)
+    setActiveBookId(snapshot.activeBookId)
+    setActiveVolumeId(snapshot.activeVolumeId)
+    setActiveChapterId(snapshot.activeChapterId)
+    setExpandedVolumeIds(snapshot.expandedVolumeIds)
+    setIsLibraryView(snapshot.isLibraryView)
+  }
+
+  function showSyncFailure() {
+    setErrorMessage('操作失败，网络异常')
+    if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current)
+    toastTimerRef.current = window.setTimeout(() => {
+      setErrorMessage('')
+      toastTimerRef.current = null
+    }, 2600)
+  }
+
+  function rollbackMutation(snapshot: WritingSnapshot) {
+    restoreSnapshot(snapshot)
+    showSyncFailure()
   }
 
   function updateBook(bookId: string, updater: (book: WritingBook) => WritingBook) {
@@ -137,11 +273,12 @@ export function WritingStudioPage() {
   }
 
   function handleMutationError(error: unknown) {
-    setErrorMessage((error as Error).message || '写作数据同步失败。')
-    void booksQuery.refetch()
+    console.error(error)
+    showSyncFailure()
   }
 
-  function queueChapterPatch(chapterId: string, patch: UpdateWritingChapterInput) {
+  function queueChapterPatch(chapterId: string, patch: UpdateWritingChapterInput, snapshot: WritingSnapshot) {
+    pendingChapterSnapshotsRef.current[chapterId] = pendingChapterSnapshotsRef.current[chapterId] ?? snapshot
     pendingChapterPatchesRef.current[chapterId] = {
       ...pendingChapterPatchesRef.current[chapterId],
       ...patch,
@@ -153,29 +290,94 @@ export function WritingStudioPage() {
 
     chapterTimersRef.current[chapterId] = window.setTimeout(() => {
       const payload = pendingChapterPatchesRef.current[chapterId]
+      const rollbackSnapshot = pendingChapterSnapshotsRef.current[chapterId]
       delete pendingChapterPatchesRef.current[chapterId]
+      delete pendingChapterSnapshotsRef.current[chapterId]
       delete chapterTimersRef.current[chapterId]
 
       updateChapterMutation.mutate(
         { id: chapterId, payload },
         {
-          onError: handleMutationError,
+          onError: () => {
+            if (rollbackSnapshot) rollbackMutation(rollbackSnapshot)
+            else showSyncFailure()
+          },
         }
       )
     }, 500)
   }
 
-  function openBook(bookId: string, volumeId?: string, chapterId?: string) {
+  async function ensureBookTree(bookId: string) {
+    const book = books.find((item) => item.id === bookId)
+    const needsTree = !book || book.volumes.length === 0
+    if (!needsTree) return book
+
+    const tree = await refreshBookTree(bookId)
+    return tree
+  }
+
+  async function refreshBookTree(bookId: string) {
+    const tree = await queryClient.fetchQuery({
+      queryKey: writingBookTreeQueryKey(bookId),
+      queryFn: () => fetchWritingBookTree(bookId),
+    })
+    const mergedTree = mergeWritingBookTree(tree, books.find((item) => item.id === bookId))
+
+    applyBooks((current) => {
+      if (!current.some((item) => item.id === bookId)) return [...current, mergedTree]
+      return current.map((item) => (item.id === bookId ? mergeWritingBookTree(tree, item) : item))
+    })
+
+    return mergedTree
+  }
+
+  async function refreshWritingBooksList() {
+    await booksQuery.refetch()
+  }
+
+  async function ensureChapterDetail(bookId: string, volumeId: string, chapterId: string) {
+    const chapter = books
+      .find((book) => book.id === bookId)
+      ?.volumes.find((volume) => volume.id === volumeId)
+      ?.chapters.find((item) => item.id === chapterId)
+
+    if (chapter?.detailLoaded) return
+
+    setLoadingChapterId(chapterId)
+    try {
+      const detail = await queryClient.fetchQuery({
+        queryKey: writingChapterQueryKey(chapterId),
+        queryFn: () => fetchWritingChapter(chapterId),
+      })
+      updateChapter(bookId, volumeId, chapterId, () => detail)
+    } finally {
+      setLoadingChapterId((current) => (current === chapterId ? '' : current))
+    }
+  }
+
+  async function openBook(bookId: string, volumeId?: string, chapterId?: string) {
     const nextBook = books.find((book) => book.id === bookId)
     if (!nextBook) return
 
-    setIsLibraryView(false)
-    setActiveBookId(nextBook.id)
-    setActiveVolumeId(volumeId ?? nextBook.volumes[0]?.id ?? '')
-    setActiveChapterId(chapterId ?? '')
+    try {
+      const tree = await ensureBookTree(bookId)
+      const nextVolumeId = volumeId ?? tree?.volumes[0]?.id ?? ''
+      const nextChapterId = chapterId ?? ''
 
-    if (volumeId) {
-      setExpandedVolumeIds((current) => (current.includes(volumeId) ? current : [...current, volumeId]))
+      setIsLibraryView(false)
+      setActiveBookId(bookId)
+      setActiveVolumeId(nextVolumeId)
+      setActiveChapterId(nextChapterId)
+
+      if (nextVolumeId) {
+        setExpandedVolumeIds((current) => (current.includes(nextVolumeId) ? current : [...current, nextVolumeId]))
+      }
+
+      if (nextVolumeId && nextChapterId) {
+        await ensureChapterDetail(bookId, nextVolumeId, nextChapterId)
+      }
+    } catch (error) {
+      handleMutationError(error)
     }
   }
 
@@ -185,15 +387,43 @@ export function WritingStudioPage() {
     setActiveChapterId('')
   }
 
-  async function createBook(payload: { title: string; description?: string; cover?: string }) {
-    const nextBook = createDraftBook(payload)
+  function saveBook(bookId: string, payload: UpdateWritingBookInput) {
+    const snapshot = createSnapshot()
+
+    updateBook(bookId, (book) => ({
+      ...book,
+      title: payload.title ?? book.title,
+      description: payload.description ?? book.description,
+      cover: payload.cover === undefined ? book.cover : payload.cover ?? undefined,
+      penName: payload.penName ?? book.penName,
+      style: payload.style ?? book.style,
+      styleNote: payload.styleNote ?? book.styleNote,
+    }))
+
+    updateBookMutation.mutate(
+      { id: bookId, payload },
+      {
+        onError: () => rollbackMutation(snapshot),
+      }
+    )
+  }
+
+  function createBook(payload: { title: string; description?: string; cover?: string }) {
+    const snapshot = createSnapshot()
+    const nextBook = withWritingCounts(createDraftBook(payload))
     const firstVolume = nextBook.volumes[0]
     const firstChapter = firstVolume.chapters[0]
 
-    setErrorMessage('')
+    applyBooks((current) => [nextBook, ...current])
+    setActiveBookId(nextBook.id)
+    setActiveVolumeId(firstVolume.id)
+    setActiveChapterId('')
+    setExpandedVolumeIds((current) => (current.includes(firstVolume.id) ? current : [firstVolume.id, ...current]))
+    setIsLibraryView(false)
+    setIsCreateBookOpen(false)
 
-    try {
-      await createBookMutation.mutateAsync({
+    createBookMutation.mutate(
+      {
         id: nextBook.id,
         title: nextBook.title,
         description: nextBook.description,
@@ -201,95 +431,87 @@ export function WritingStudioPage() {
         penName: nextBook.penName,
         style: nextBook.style,
         styleNote: nextBook.styleNote,
-      })
-
-      await createVolumeMutation.mutateAsync({
-        id: firstVolume.id,
-        bookId: nextBook.id,
-        title: firstVolume.title,
-        description: firstVolume.description,
-        marked: firstVolume.marked,
-      })
-
-      await createChapterMutation.mutateAsync({
-        id: firstChapter.id,
-        volumeId: firstVolume.id,
-        title: firstChapter.title,
-        summary: firstChapter.summary,
-        content: firstChapter.content,
-        sceneNotes: firstChapter.sceneNotes,
-        prompt: firstChapter.prompt,
-        characters: firstChapter.characters,
-        updatedAt: firstChapter.updatedAt,
-        marked: firstChapter.marked,
-      })
-
-      applyBooks((current) => [nextBook, ...current])
-      setActiveBookId(nextBook.id)
-      setActiveVolumeId(firstVolume.id)
-      setActiveChapterId('')
-      setExpandedVolumeIds((current) => (current.includes(firstVolume.id) ? current : [firstVolume.id, ...current]))
-      setIsLibraryView(false)
-      setIsCreateBookOpen(false)
-    } catch (error) {
-      handleMutationError(error)
-    }
+        defaultVolume: {
+          id: firstVolume.id,
+          title: firstVolume.title,
+          description: firstVolume.description,
+          marked: firstVolume.marked,
+          defaultChapter: {
+            id: firstChapter.id,
+            title: firstChapter.title,
+            summary: firstChapter.summary,
+            content: firstChapter.content,
+            sceneNotes: firstChapter.sceneNotes,
+            prompt: firstChapter.prompt,
+            characters: firstChapter.characters,
+            reviewChecklist: firstChapter.reviewChecklist,
+            nextActions: firstChapter.nextActions,
+            updatedAt: firstChapter.updatedAt,
+            marked: firstChapter.marked,
+          },
+        },
+      },
+      {
+        onError: () => rollbackMutation(snapshot),
+      }
+    )
   }
 
-  async function addVolume(bookId: string) {
+  function addVolume(bookId: string) {
     const book = books.find((item) => item.id === bookId)
-    if (!book) return
+    if (!book) return undefined
 
-    const nextVolume = createDraftVolume(book.volumes.length + 1)
-    const firstChapter = nextVolume.chapters[0]
-    setErrorMessage('')
+    const snapshot = createSnapshot()
+    const nextVolume = {
+      ...createDraftVolume(book.volumes.length + 1),
+      chapters: [],
+    }
 
-    try {
-      await createVolumeMutation.mutateAsync({
+    updateBook(bookId, (currentBook) => ({
+      ...currentBook,
+      volumes: [...currentBook.volumes, nextVolume],
+    }))
+    setExpandedVolumeIds((current) => (current.includes(nextVolume.id) ? current : [...current, nextVolume.id]))
+    setActiveBookId(bookId)
+    setActiveVolumeId(nextVolume.id)
+    setActiveChapterId('')
+    setIsLibraryView(false)
+
+    createVolumeMutation.mutate(
+      {
         id: nextVolume.id,
         bookId,
         title: nextVolume.title,
         description: nextVolume.description,
         marked: nextVolume.marked,
-      })
+      },
+      {
+        onError: () => rollbackMutation(snapshot),
+      }
+    )
 
-      await createChapterMutation.mutateAsync({
-        id: firstChapter.id,
-        volumeId: nextVolume.id,
-        title: firstChapter.title,
-        summary: firstChapter.summary,
-        content: firstChapter.content,
-        sceneNotes: firstChapter.sceneNotes,
-        prompt: firstChapter.prompt,
-        characters: firstChapter.characters,
-        updatedAt: firstChapter.updatedAt,
-        marked: firstChapter.marked,
-      })
-
-      updateBook(bookId, (currentBook) => ({
-        ...currentBook,
-        volumes: [...currentBook.volumes, nextVolume],
-      }))
-
-      setExpandedVolumeIds((current) => (current.includes(nextVolume.id) ? current : [...current, nextVolume.id]))
-      setActiveBookId(bookId)
-      setActiveVolumeId(nextVolume.id)
-      setActiveChapterId('')
-      setIsLibraryView(false)
-    } catch (error) {
-      handleMutationError(error)
-    }
+    return nextVolume
   }
 
-  async function addChapter(bookId: string, volumeId: string) {
+  function addChapter(bookId: string, volumeId: string) {
     const volume = books.find((book) => book.id === bookId)?.volumes.find((item) => item.id === volumeId)
     if (!volume) return
 
+    const snapshot = createSnapshot()
     const nextChapter = createDraftChapter(volume.chapters.length + 1)
-    setErrorMessage('')
 
-    try {
-      await createChapterMutation.mutateAsync({
+    updateVolume(bookId, volumeId, (currentVolume) => ({
+      ...currentVolume,
+      chapters: [...currentVolume.chapters, nextChapter],
+    }))
+    setExpandedVolumeIds((current) => (current.includes(volumeId) ? current : [...current, volumeId]))
+    setActiveBookId(bookId)
+    setActiveVolumeId(volumeId)
+    setActiveChapterId(nextChapter.id)
+    setIsLibraryView(false)
+
+    createChapterMutation.mutate(
+      {
         id: nextChapter.id,
         volumeId,
         title: nextChapter.title,
@@ -298,148 +520,70 @@ export function WritingStudioPage() {
         sceneNotes: nextChapter.sceneNotes,
         prompt: nextChapter.prompt,
         characters: nextChapter.characters,
+        reviewChecklist: nextChapter.reviewChecklist,
+        nextActions: nextChapter.nextActions,
         updatedAt: nextChapter.updatedAt,
         marked: nextChapter.marked,
-      })
-
-      updateVolume(bookId, volumeId, (currentVolume) => ({
-        ...currentVolume,
-        chapters: [...currentVolume.chapters, nextChapter],
-      }))
-
-      setExpandedVolumeIds((current) => (current.includes(volumeId) ? current : [...current, volumeId]))
-      setActiveBookId(bookId)
-      setActiveVolumeId(volumeId)
-      setActiveChapterId(nextChapter.id)
-      setIsLibraryView(false)
-    } catch (error) {
-      handleMutationError(error)
-    }
+      },
+      {
+        onError: () => rollbackMutation(snapshot),
+      }
+    )
   }
 
-  async function deleteVolume(bookId: string, volumeId: string) {
+  function deleteVolume(bookId: string, volumeId: string) {
     const book = books.find((item) => item.id === bookId)
     if (!book) return
 
-    setErrorMessage('')
+    const snapshot = createSnapshot()
+    const volumeIndex = book.volumes.findIndex((volume) => volume.id === volumeId)
+    const nextVolumes = book.volumes.filter((volume) => volume.id !== volumeId)
+    const fallbackVolume = nextVolumes[Math.max(0, volumeIndex - 1)] ?? nextVolumes[0]
 
-    try {
-      await deleteVolumeMutation.mutateAsync(volumeId)
-
-      if (book.volumes.length === 1) {
-        const replacement = createDraftVolume(1)
-        const firstChapter = replacement.chapters[0]
-
-        await createVolumeMutation.mutateAsync({
-          id: replacement.id,
-          bookId,
-          title: replacement.title,
-          description: replacement.description,
-          marked: replacement.marked,
-        })
-
-        await createChapterMutation.mutateAsync({
-          id: firstChapter.id,
-          volumeId: replacement.id,
-          title: firstChapter.title,
-          summary: firstChapter.summary,
-          content: firstChapter.content,
-          sceneNotes: firstChapter.sceneNotes,
-          prompt: firstChapter.prompt,
-          characters: firstChapter.characters,
-          updatedAt: firstChapter.updatedAt,
-          marked: firstChapter.marked,
-        })
-
-        updateBook(bookId, (currentBook) => ({
-          ...currentBook,
-          volumes: [replacement],
-        }))
-
-        setExpandedVolumeIds([replacement.id])
-        setActiveBookId(bookId)
-        setActiveVolumeId(replacement.id)
-        setActiveChapterId('')
-        return
-      }
-
-      updateBook(bookId, (currentBook) => {
-        const index = currentBook.volumes.findIndex((volume) => volume.id === volumeId)
-        const nextVolumes = currentBook.volumes.filter((volume) => volume.id !== volumeId)
-        const fallbackVolume = nextVolumes[Math.max(0, index - 1)] ?? nextVolumes[0]
-
-        setExpandedVolumeIds((current) => current.filter((id) => id !== volumeId))
-        if (activeVolumeId === volumeId) {
-          setActiveBookId(bookId)
-          setActiveVolumeId(fallbackVolume?.id ?? '')
-          setActiveChapterId('')
-        }
-
-        return {
-          ...currentBook,
-          volumes: nextVolumes,
-        }
-      })
-    } catch (error) {
-      handleMutationError(error)
+    updateBook(bookId, (currentBook) => ({
+      ...currentBook,
+      volumes: currentBook.volumes.filter((volume) => volume.id !== volumeId),
+    }))
+    setExpandedVolumeIds((current) => current.filter((id) => id !== volumeId))
+    if (activeVolumeId === volumeId) {
+      setActiveBookId(bookId)
+      setActiveVolumeId(fallbackVolume?.id ?? '')
+      setActiveChapterId('')
     }
+
+    deleteVolumeMutation.mutate(
+      { id: volumeId },
+      {
+        onError: () => rollbackMutation(snapshot),
+      }
+    )
   }
 
-  async function deleteChapter(bookId: string, volumeId: string, chapterId: string) {
+  function deleteChapter(bookId: string, volumeId: string, chapterId: string) {
     const volume = books.find((book) => book.id === bookId)?.volumes.find((item) => item.id === volumeId)
     if (!volume) return
 
-    setErrorMessage('')
+    const snapshot = createSnapshot()
+    const chapterIndex = volume.chapters.findIndex((chapter) => chapter.id === chapterId)
+    const nextChapters = volume.chapters.filter((chapter) => chapter.id !== chapterId)
+    const fallbackChapter = nextChapters[Math.max(0, chapterIndex - 1)] ?? nextChapters[0]
 
-    try {
-      await deleteChapterMutation.mutateAsync(chapterId)
-
-      if (volume.chapters.length === 1) {
-        const replacement = createDraftChapter(1)
-
-        await createChapterMutation.mutateAsync({
-          id: replacement.id,
-          volumeId,
-          title: replacement.title,
-          summary: replacement.summary,
-          content: replacement.content,
-          sceneNotes: replacement.sceneNotes,
-          prompt: replacement.prompt,
-          characters: replacement.characters,
-          updatedAt: replacement.updatedAt,
-          marked: replacement.marked,
-        })
-
-        updateVolume(bookId, volumeId, (currentVolume) => ({
-          ...currentVolume,
-          chapters: [replacement],
-        }))
-
-        setActiveBookId(bookId)
-        setActiveVolumeId(volumeId)
-        setActiveChapterId(replacement.id)
-        return
-      }
-
-      updateVolume(bookId, volumeId, (currentVolume) => {
-        const index = currentVolume.chapters.findIndex((chapter) => chapter.id === chapterId)
-        const nextChapters = currentVolume.chapters.filter((chapter) => chapter.id !== chapterId)
-        const fallbackChapter = nextChapters[Math.max(0, index - 1)] ?? nextChapters[0]
-
-        if (activeChapterId === chapterId) {
-          setActiveBookId(bookId)
-          setActiveVolumeId(volumeId)
-          setActiveChapterId(fallbackChapter?.id ?? '')
-        }
-
-        return {
-          ...currentVolume,
-          chapters: nextChapters,
-        }
-      })
-    } catch (error) {
-      handleMutationError(error)
+    updateVolume(bookId, volumeId, (currentVolume) => ({
+      ...currentVolume,
+      chapters: currentVolume.chapters.filter((chapter) => chapter.id !== chapterId),
+    }))
+    if (activeChapterId === chapterId) {
+      setActiveBookId(bookId)
+      setActiveVolumeId(volumeId)
+      setActiveChapterId(fallbackChapter?.id ?? '')
     }
+
+    deleteChapterMutation.mutate(
+      { id: chapterId },
+      {
+        onError: () => rollbackMutation(snapshot),
+      }
+    )
   }
 
   if (booksQuery.isLoading && !hydratedRef.current) {
@@ -475,17 +619,19 @@ export function WritingStudioPage() {
             )
           }
           onAddVolume={addVolume}
-          onRenameVolume={(bookId, volumeId, title) => {
-            updateVolume(bookId, volumeId, (volume) => ({ ...volume, title }))
+          onRenameVolume={(bookId, volumeId, title, description) => {
+            const snapshot = createSnapshot()
+            updateVolume(bookId, volumeId, (volume) => ({ ...volume, title, description }))
             updateVolumeMutation.mutate(
-              { id: volumeId, payload: { title } },
+              { id: volumeId, payload: { title, description } },
               {
-                onError: handleMutationError,
+                onError: () => rollbackMutation(snapshot),
               }
             )
           }}
           onDeleteVolume={deleteVolume}
           onToggleVolumeMarked={(bookId, volumeId) => {
+            const snapshot = createSnapshot()
             const currentMarked =
               books.find((book) => book.id === bookId)?.volumes.find((volume) => volume.id === volumeId)?.marked ?? false
             const marked = !currentMarked
@@ -494,18 +640,20 @@ export function WritingStudioPage() {
             updateVolumeMutation.mutate(
               { id: volumeId, payload: { marked } },
               {
-                onError: handleMutationError,
+                onError: () => rollbackMutation(snapshot),
               }
             )
           }}
           onAddChapter={addChapter}
           onRenameChapter={(bookId, volumeId, chapterId, title) => {
+            const snapshot = createSnapshot()
             const updatedAt = createTimestampLabel()
             updateChapter(bookId, volumeId, chapterId, (chapter) => ({ ...chapter, title, updatedAt }))
-            queueChapterPatch(chapterId, { title, updatedAt })
+            queueChapterPatch(chapterId, { title, updatedAt }, snapshot)
           }}
           onDeleteChapter={deleteChapter}
           onToggleChapterMarked={(bookId, volumeId, chapterId) => {
+            const snapshot = createSnapshot()
             const currentMarked =
               books
                 .find((book) => book.id === bookId)
@@ -515,7 +663,7 @@ export function WritingStudioPage() {
             const updatedAt = createTimestampLabel()
 
             updateChapter(bookId, volumeId, chapterId, (chapter) => ({ ...chapter, marked, updatedAt }))
-            queueChapterPatch(chapterId, { marked, updatedAt })
+            queueChapterPatch(chapterId, { marked, updatedAt }, snapshot)
           }}
         />
 
@@ -527,23 +675,28 @@ export function WritingStudioPage() {
                 volumeTitle={activeVolume.title}
                 chapter={activeChapter}
                 activeTab={activeTab}
+                isLoading={loadingChapterId === activeChapter.id}
                 onTabChange={setActiveTab}
                 onTitleChange={(value) => {
+                  const snapshot = createSnapshot()
                   const updatedAt = createTimestampLabel()
                   updateChapter(activeBook.id, activeVolume.id, activeChapter.id, (chapter) => ({ ...chapter, title: value, updatedAt }))
-                  queueChapterPatch(activeChapter.id, { title: value, updatedAt })
+                  queueChapterPatch(activeChapter.id, { title: value, updatedAt }, snapshot)
                 }}
                 onContentChange={(value) => {
+                  const snapshot = createSnapshot()
                   const updatedAt = createTimestampLabel()
                   updateChapter(activeBook.id, activeVolume.id, activeChapter.id, (chapter) => ({ ...chapter, content: value, updatedAt }))
-                  queueChapterPatch(activeChapter.id, { content: value, updatedAt })
+                  queueChapterPatch(activeChapter.id, { content: value, updatedAt }, snapshot)
                 }}
                 onPromptChange={(value) => {
+                  const snapshot = createSnapshot()
                   const updatedAt = createTimestampLabel()
                   updateChapter(activeBook.id, activeVolume.id, activeChapter.id, (chapter) => ({ ...chapter, prompt: value, updatedAt }))
-                  queueChapterPatch(activeChapter.id, { prompt: value, updatedAt })
+                  queueChapterPatch(activeChapter.id, { prompt: value, updatedAt }, snapshot)
                 }}
                 onSceneNoteChange={(index, value) => {
+                  const snapshot = createSnapshot()
                   const nextSceneNotes = activeChapter.sceneNotes.map((note, noteIndex) => (noteIndex === index ? value : note))
                   const updatedAt = createTimestampLabel()
                   updateChapter(activeBook.id, activeVolume.id, activeChapter.id, (chapter) => ({
@@ -551,9 +704,10 @@ export function WritingStudioPage() {
                     sceneNotes: nextSceneNotes,
                     updatedAt,
                   }))
-                  queueChapterPatch(activeChapter.id, { sceneNotes: nextSceneNotes, updatedAt })
+                  queueChapterPatch(activeChapter.id, { sceneNotes: nextSceneNotes, updatedAt }, snapshot)
                 }}
                 onAddSceneNote={() => {
+                  const snapshot = createSnapshot()
                   const nextSceneNotes = [...activeChapter.sceneNotes, '新的场景备注...']
                   const updatedAt = createTimestampLabel()
                   updateChapter(activeBook.id, activeVolume.id, activeChapter.id, (chapter) => ({
@@ -561,9 +715,10 @@ export function WritingStudioPage() {
                     sceneNotes: nextSceneNotes,
                     updatedAt,
                   }))
-                  queueChapterPatch(activeChapter.id, { sceneNotes: nextSceneNotes, updatedAt })
+                  queueChapterPatch(activeChapter.id, { sceneNotes: nextSceneNotes, updatedAt }, snapshot)
                 }}
                 onCharacterChange={(id, field, value) => {
+                  const snapshot = createSnapshot()
                   const nextCharacters = activeChapter.characters.map((character) =>
                     character.id === id ? { ...character, [field]: value } : character
                   )
@@ -573,9 +728,10 @@ export function WritingStudioPage() {
                     characters: nextCharacters,
                     updatedAt,
                   }))
-                  queueChapterPatch(activeChapter.id, { characters: nextCharacters, updatedAt })
+                  queueChapterPatch(activeChapter.id, { characters: nextCharacters, updatedAt }, snapshot)
                 }}
                 onAddCharacter={() => {
+                  const snapshot = createSnapshot()
                   const nextCharacters = [
                     ...activeChapter.characters,
                     {
@@ -591,29 +747,88 @@ export function WritingStudioPage() {
                     characters: nextCharacters,
                     updatedAt,
                   }))
-                  queueChapterPatch(activeChapter.id, { characters: nextCharacters, updatedAt })
+                  queueChapterPatch(activeChapter.id, { characters: nextCharacters, updatedAt }, snapshot)
                 }}
               />
 
               <WritingInspector
                 chapter={activeChapter}
                 wordCount={wordCount}
+                isLoading={loadingChapterId === activeChapter.id}
                 onSummaryChange={(value) => {
+                  const snapshot = createSnapshot()
                   const updatedAt = createTimestampLabel()
                   updateChapter(activeBook.id, activeVolume.id, activeChapter.id, (chapter) => ({ ...chapter, summary: value, updatedAt }))
-                  queueChapterPatch(activeChapter.id, { summary: value, updatedAt })
+                  queueChapterPatch(activeChapter.id, { summary: value, updatedAt }, snapshot)
+                }}
+                onReviewChecklistChange={(reviewChecklist) => {
+                  const snapshot = createSnapshot()
+                  const updatedAt = createTimestampLabel()
+                  updateChapter(activeBook.id, activeVolume.id, activeChapter.id, (chapter) => ({
+                    ...chapter,
+                    reviewChecklist,
+                    updatedAt,
+                  }))
+                  queueChapterPatch(activeChapter.id, { reviewChecklist, updatedAt }, snapshot)
+                }}
+                onNextActionsChange={(nextActions) => {
+                  const snapshot = createSnapshot()
+                  const updatedAt = createTimestampLabel()
+                  updateChapter(activeBook.id, activeVolume.id, activeChapter.id, (chapter) => ({
+                    ...chapter,
+                    nextActions,
+                    updatedAt,
+                  }))
+                  queueChapterPatch(activeChapter.id, { nextActions, updatedAt }, snapshot)
                 }}
               />
             </>
           ) : isVolumeView && activeBook && activeVolume ? (
             <>
-              <WritingVolumePlaceholder bookTitle={activeBook.title} volume={activeVolume} />
-              <WritingVolumeInspector volume={activeVolume} />
+              <WritingVolumePlaceholder
+                bookTitle={activeBook.title}
+                volume={activeVolume}
+                onOpenChapter={(chapterId) => openBook(activeBook.id, activeVolume.id, chapterId)}
+                onAddChapter={() => addChapter(activeBook.id, activeVolume.id)}
+              />
+              <WritingVolumeInspector
+                volume={activeVolume}
+                onSave={(payload) => {
+                  const snapshot = createSnapshot()
+                  updateVolume(activeBook.id, activeVolume.id, (volume) => ({
+                    ...volume,
+                    description: payload.description ?? volume.description,
+                    title: payload.title ?? volume.title,
+                    marked: payload.marked ?? volume.marked,
+                  }))
+                  updateVolumeMutation.mutate(
+                    { id: activeVolume.id, payload },
+                    {
+                      onError: () => rollbackMutation(snapshot),
+                    }
+                  )
+                }}
+                onToggleMarked={() => {
+                  const snapshot = createSnapshot()
+                  const marked = !activeVolume.marked
+                  updateVolume(activeBook.id, activeVolume.id, (volume) => ({ ...volume, marked }))
+                  updateVolumeMutation.mutate(
+                    { id: activeVolume.id, payload: { marked } },
+                    {
+                      onError: () => rollbackMutation(snapshot),
+                    }
+                  )
+                }}
+              />
             </>
           ) : (
             <>
-              <WritingShelf books={books} currentBook={activeBook} onOpenBook={(bookId) => openBook(bookId)} />
-              <WritingAuthorPanel book={activeBook} worksCount={booksCount} />
+              <WritingShelf books={books} onOpenBook={(bookId) => openBook(bookId)} />
+              <WritingAuthorPanel
+                book={activeBook}
+                worksCount={booksCount}
+                onSave={(payload) => saveBook(activeBook.id, payload)}
+              />
             </>
           )}
         </div>
@@ -630,4 +845,4 @@ export function WritingStudioPage() {
   )
 }
 
-// 写作工作台页面，接入真实后端 CRUD 与本地编辑状态。
+// 写作工作台页面，接入真实后端 CRUD 与书本资料保存。

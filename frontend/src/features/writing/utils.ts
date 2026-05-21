@@ -7,6 +7,52 @@ export function countWritingWords(text: string) {
   return text.replace(/\s+/g, '').length
 }
 
+export function compareWritingTitles<T extends { title: string }>(left: T, right: T) {
+  const leftIndex = getTitleIndex(left.title)
+  const rightIndex = getTitleIndex(right.title)
+  if (leftIndex !== rightIndex) return leftIndex - rightIndex
+
+  return left.title.localeCompare(right.title, 'zh-Hans-CN', { numeric: true })
+}
+
+function getTitleIndex(title: string) {
+  const directNumber = title.match(/第\s*(\d+)\s*[卷章]/)
+  if (directNumber) return Number(directNumber[1])
+
+  const chineseNumber = title.match(/第\s*([零〇一二两三四五六七八九十]+)\s*[卷章]/)
+  if (!chineseNumber) return Number.MAX_SAFE_INTEGER
+
+  return parseChineseNumber(chineseNumber[1])
+}
+
+function parseChineseNumber(value: string) {
+  const digits: Record<string, number> = {
+    零: 0,
+    〇: 0,
+    一: 1,
+    二: 2,
+    两: 2,
+    三: 3,
+    四: 4,
+    五: 5,
+    六: 6,
+    七: 7,
+    八: 8,
+    九: 9,
+  }
+
+  if (value === '十') return 10
+
+  const [beforeTen, afterTen] = value.split('十')
+  if (afterTen !== undefined) {
+    const tens = beforeTen ? digits[beforeTen] ?? 0 : 1
+    const ones = afterTen ? digits[afterTen] ?? 0 : 0
+    return tens * 10 + ones
+  }
+
+  return digits[value] ?? Number.MAX_SAFE_INTEGER
+}
+
 export function makeVolumeTitle(index: number) {
   return `第 ${index} 卷`
 }
@@ -42,6 +88,13 @@ export function createDraftChapter(index: number): WritingChapter {
         note: '补充角色设定。',
       },
     ],
+    reviewChecklist: [
+      { id: `review-${stamp}-1`, text: '这一章是否明确推进冲突', checked: false },
+      { id: `review-${stamp}-2`, text: '场景切换是否足够顺滑', checked: false },
+      { id: `review-${stamp}-3`, text: '角色动机是否有新的信息', checked: false },
+      { id: `review-${stamp}-4`, text: '结尾是否留下继续阅读的牵引', checked: false },
+    ],
+    nextActions: ['补足关键冲突的压迫感', '检查本章结尾的牵引力'],
     updatedAt: createTimestampLabel(),
     marked: false,
   }

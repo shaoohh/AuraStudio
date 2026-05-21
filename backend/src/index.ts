@@ -16,6 +16,16 @@ type Variables = {
 
 const app = new Hono<{ Variables: Variables }>()
 
+app.onError((error, c) => {
+  console.error('[api error]', error)
+  return c.json(
+    {
+      error: error instanceof Error ? error.message : '服务器内部错误。',
+    },
+    500
+  )
+})
+
 app.use(
   '/*',
   cors({

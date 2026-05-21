@@ -20,6 +20,7 @@ interface WritingCanvasProps {
   onAddSceneNote: () => void
   onCharacterChange: (id: string, field: 'name' | 'role' | 'note', value: string) => void
   onAddCharacter: () => void
+  isLoading?: boolean
 }
 
 export function WritingCanvas({
@@ -35,6 +36,7 @@ export function WritingCanvas({
   onAddSceneNote,
   onCharacterChange,
   onAddCharacter,
+  isLoading = false,
 }: WritingCanvasProps) {
   return (
     <main className="flex min-w-0 flex-1 flex-col bg-white">
@@ -64,8 +66,10 @@ export function WritingCanvas({
             <Textarea
               value={chapter.content}
               onChange={(event) => onContentChange(event.target.value)}
+              disabled={isLoading}
               className="min-h-[560px] resize-none border-none bg-transparent px-0 font-serif text-lg leading-loose text-gray-700 shadow-none focus-visible:ring-0"
             />
+            {isLoading ? <div className="text-center text-sm text-[#9d9385]">正在加载章节正文...</div> : null}
           </div>
         ) : null}
 
@@ -77,7 +81,7 @@ export function WritingCanvas({
                 <p className="mt-1 text-sm text-gray-400">把片段拆开写，后续接标签、镜头或 AI 提示都会更顺。</p>
               </div>
 
-              <Button variant="outline" className="rounded-[12px] border-[#E5E4E7] text-[#243137]" onClick={onAddSceneNote}>
+              <Button variant="outline" className="rounded-[12px] border-[#E5E4E7] text-[#243137]" disabled={isLoading} onClick={onAddSceneNote}>
                 <Plus className="mr-2 h-4 w-4" />
                 新增片段
               </Button>
@@ -90,6 +94,7 @@ export function WritingCanvas({
                   <Textarea
                     value={note}
                     onChange={(event) => onSceneNoteChange(index, event.target.value)}
+                    disabled={isLoading}
                     className="min-h-[120px] resize-none border-none bg-transparent px-0 text-sm leading-7 text-gray-700 shadow-none focus-visible:ring-0"
                   />
                 </div>
@@ -109,6 +114,7 @@ export function WritingCanvas({
               <Textarea
                 value={chapter.prompt}
                 onChange={(event) => onPromptChange(event.target.value)}
+                disabled={isLoading}
                 className="min-h-[360px] resize-none border-none bg-transparent px-0 text-sm leading-7 text-gray-700 shadow-none focus-visible:ring-0"
               />
             </div>
@@ -123,7 +129,7 @@ export function WritingCanvas({
                 <p className="mt-1 text-sm text-gray-400">先把人物卡和写作现场连起来，后面再接资料库。</p>
               </div>
 
-              <Button variant="outline" className="rounded-[12px] border-[#E5E4E7] text-[#243137]" onClick={onAddCharacter}>
+              <Button variant="outline" className="rounded-[12px] border-[#E5E4E7] text-[#243137]" disabled={isLoading} onClick={onAddCharacter}>
                 <Plus className="mr-2 h-4 w-4" />
                 新增角色
               </Button>
@@ -136,11 +142,13 @@ export function WritingCanvas({
                     <Input
                       value={character.name}
                       onChange={(event) => onCharacterChange(character.id, 'name', event.target.value)}
+                      disabled={isLoading}
                       className="h-11 rounded-[12px] border-[#E5E4E7] text-[#243137]"
                     />
                     <Input
                       value={character.role}
                       onChange={(event) => onCharacterChange(character.id, 'role', event.target.value)}
+                      disabled={isLoading}
                       className="h-11 rounded-[12px] border-[#E5E4E7] text-[#243137]"
                     />
                   </div>
@@ -148,6 +156,7 @@ export function WritingCanvas({
                   <Textarea
                     value={character.note}
                     onChange={(event) => onCharacterChange(character.id, 'note', event.target.value)}
+                    disabled={isLoading}
                     className="mt-3 min-h-[160px] resize-none rounded-[14px] border-[#E5E4E7] text-sm leading-7 text-gray-600"
                   />
                 </div>

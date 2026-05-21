@@ -8,6 +8,12 @@ type WritingCharacterRecord = {
   note: string
 }
 
+type WritingReviewChecklistItemRecord = {
+  id: string
+  text: string
+  checked: boolean
+}
+
 export const categories = pgTable('categories', {
   id: uuid('id').defaultRandom().primaryKey(),
   name: text('name').notNull(),
@@ -95,7 +101,6 @@ export const writingBooks = pgTable('writing_books', {
   penName: text('pen_name').default('未命名作者').notNull(),
   style: text('style').default('风格待分析').notNull(),
   styleNote: text('style_note').default('先把书本架子搭起来，后面再慢慢补作者画像。').notNull(),
-  orderIndex: integer('order_index').default(0).notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 })
 
@@ -107,7 +112,6 @@ export const writingVolumes = pgTable('writing_volumes', {
   title: text('title').notNull(),
   description: text('description').default('作者很懒').notNull(),
   marked: boolean('marked').default(false).notNull(),
-  orderIndex: integer('order_index').default(0).notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 })
 
@@ -122,9 +126,10 @@ export const writingChapters = pgTable('writing_chapters', {
   sceneNotes: jsonb('scene_notes').$type<string[]>().default(sql`'[]'::jsonb`).notNull(),
   prompt: text('prompt').default('').notNull(),
   characters: jsonb('characters').$type<WritingCharacterRecord[]>().default(sql`'[]'::jsonb`).notNull(),
+  reviewChecklist: jsonb('review_checklist').$type<WritingReviewChecklistItemRecord[]>().default(sql`'[]'::jsonb`).notNull(),
+  nextActions: jsonb('next_actions').$type<string[]>().default(sql`'[]'::jsonb`).notNull(),
   updatedAtLabel: text('updated_at_label').default('').notNull(),
   marked: boolean('marked').default(false).notNull(),
-  orderIndex: integer('order_index').default(0).notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 })

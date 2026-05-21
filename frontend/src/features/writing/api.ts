@@ -2,11 +2,14 @@ import { useMutation, useQuery } from '@tanstack/react-query'
 
 import { supabase } from '@/lib/supabase'
 
-import type { WritingBook, WritingCharacter } from './types'
+import type { WritingBook, WritingChapter, WritingCharacter, WritingReviewChecklistItem } from './types'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:3000'
 
-export const writingBooksQueryKey = ['writing', 'books'] as const
+export const writingQueryKey = ['writing'] as const
+export const writingBooksQueryKey = [...writingQueryKey, 'books'] as const
+export const writingBookTreeQueryKey = (id: string) => [...writingBooksQueryKey, id, 'tree'] as const
+export const writingChapterQueryKey = (id: string) => [...writingQueryKey, 'chapters', id] as const
 
 export interface CreateWritingBookInput {
   id: string
@@ -16,6 +19,9 @@ export interface CreateWritingBookInput {
   penName?: string
   style?: string
   styleNote?: string
+  defaultVolume?: Omit<CreateWritingVolumeInput, 'bookId'> & {
+    defaultChapter: Omit<CreateWritingChapterInput, 'volumeId'>
+  }
 }
 
 export interface UpdateWritingBookInput {
@@ -33,6 +39,7 @@ export interface CreateWritingVolumeInput {
   title: string
   description?: string
   marked?: boolean
+  defaultChapter?: Omit<CreateWritingChapterInput, 'volumeId'>
 }
 
 export interface UpdateWritingVolumeInput {
@@ -50,6 +57,8 @@ export interface CreateWritingChapterInput {
   sceneNotes?: string[]
   prompt?: string
   characters?: WritingCharacter[]
+  reviewChecklist?: WritingReviewChecklistItem[]
+  nextActions?: string[]
   updatedAt?: string
   marked?: boolean
 }
@@ -61,8 +70,20 @@ export interface UpdateWritingChapterInput {
   sceneNotes?: string[]
   prompt?: string
   characters?: WritingCharacter[]
+  reviewChecklist?: WritingReviewChecklistItem[]
+  nextActions?: string[]
   updatedAt?: string
   marked?: boolean
+}
+
+export interface DeleteWritingVolumeInput {
+  replacement?: Omit<CreateWritingVolumeInput, 'bookId'> & {
+    defaultChapter: Omit<CreateWritingChapterInput, 'volumeId'>
+  }
+}
+
+export interface DeleteWritingChapterInput {
+  replacement?: Omit<CreateWritingChapterInput, 'volumeId'>
 }
 
 async function getAccessToken() {
@@ -107,6 +128,14 @@ export function fetchWritingBooks() {
   return request<WritingBook[]>('/books')
 }
 
+export function fetchWritingBookTree(id: string) {
+  return request<WritingBook>(`/books/${id}/tree`)
+}
+
+export function fetchWritingChapter(id: string) {
+  return request<WritingChapter>(`/chapters/${id}`)
+}
+
 export function createWritingBook(payload: CreateWritingBookInput) {
   return request('/books', {
     method: 'POST',
@@ -135,9 +164,10 @@ export function updateWritingVolume(id: string, payload: UpdateWritingVolumeInpu
   })
 }
 
-export function deleteWritingVolume(id: string) {
+export function deleteWritingVolume(id: string, payload: DeleteWritingVolumeInput = {}) {
   return request<{ success: true }>(`/volumes/${id}`, {
     method: 'DELETE',
+    body: JSON.stringify(payload),
   })
 }
 
@@ -155,9 +185,10 @@ export function updateWritingChapter(id: string, payload: UpdateWritingChapterIn
   })
 }
 
-export function deleteWritingChapter(id: string) {
+export function deleteWritingChapter(id: string, payload: DeleteWritingChapterInput = {}) {
   return request<{ success: true }>(`/chapters/${id}`, {
     method: 'DELETE',
+    body: JSON.stringify(payload),
   })
 }
 
@@ -165,6 +196,22 @@ export function useWritingBooksQuery() {
   return useQuery({
     queryKey: writingBooksQueryKey,
     queryFn: fetchWritingBooks,
+  })
+}
+
+export function useWritingBookTreeQuery(id: string, enabled = true) {
+  return useQuery({
+    queryKey: writingBookTreeQueryKey(id),
+    queryFn: () => fetchWritingBookTree(id),
+    enabled: enabled && Boolean(id),
+  })
+}
+
+export function useWritingChapterQuery(id: string, enabled = true) {
+  return useQuery({
+    queryKey: writingChapterQueryKey(id),
+    queryFn: () => fetchWritingChapter(id),
+    enabled: enabled && Boolean(id),
   })
 }
 
@@ -194,7 +241,7 @@ export function useUpdateWritingVolumeMutation() {
 
 export function useDeleteWritingVolumeMutation() {
   return useMutation({
-    mutationFn: deleteWritingVolume,
+    mutationFn: ({ id, payload }: { id: string; payload?: DeleteWritingVolumeInput }) => deleteWritingVolume(id, payload),
   })
 }
 
@@ -212,7 +259,7 @@ export function useUpdateWritingChapterMutation() {
 
 export function useDeleteWritingChapterMutation() {
   return useMutation({
-    mutationFn: deleteWritingChapter,
+    mutationFn: ({ id, payload }: { id: string; payload?: DeleteWritingChapterInput }) => deleteWritingChapter(id, payload),
   })
 }
 

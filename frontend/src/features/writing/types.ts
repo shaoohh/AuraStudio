@@ -7,6 +7,12 @@ export interface WritingCharacter {
   note: string
 }
 
+export interface WritingReviewChecklistItem {
+  id: string
+  text: string
+  checked: boolean
+}
+
 export interface WritingChapter {
   id: string
   title: string
@@ -15,8 +21,11 @@ export interface WritingChapter {
   sceneNotes: string[]
   prompt: string
   characters: WritingCharacter[]
+  reviewChecklist: WritingReviewChecklistItem[]
+  nextActions: string[]
   updatedAt: string
   marked?: boolean
+  detailLoaded?: boolean
 }
 
 export interface WritingVolume {
@@ -36,6 +45,8 @@ export interface WritingBook {
   style: string
   styleNote: string
   volumes: WritingVolume[]
+  volumeCount?: number
+  chapterCount?: number
 }
 
 // 写作域类型定义。
